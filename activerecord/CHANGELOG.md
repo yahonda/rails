@@ -1,3 +1,10 @@
+*   Dump indexes in `create_table` for generates SQL in one query.
+
+    If the adapter supports indexes in create table, it generates SQL
+    in one query.
+
+    *Ryuta Kamizono*
+
 *   Added `numeric` helper into migrations.
 
     Example:
