@@ -1,6 +1,6 @@
 require 'active_record/connection_adapters/abstract_mysql_adapter'
 
-gem 'mysql2', '>= 0.3.18', '< 0.5'
+gem 'mysql2', '~> 0.4.2'
 require 'mysql2'
 
 module ActiveRecord
@@ -16,7 +16,7 @@ module ActiveRecord
         if config[:flags].kind_of? Array
           config[:flags].push "FOUND_ROWS".freeze
         else
-          config[:flags] |= Mysql2::Client::FOUND_ROWS          
+          config[:flags] |= Mysql2::Client::FOUND_ROWS
         end
       end
 
@@ -37,7 +37,6 @@ module ActiveRecord
 
       def initialize(connection, logger, connection_options, config)
         super
-        @prepared_statements = false
         configure_connection
       end
 
@@ -103,19 +102,31 @@ module ActiveRecord
       # as values.
       def select_one(arel, name = nil, binds = [])
         arel, binds = binds_from_relation(arel, binds)
-        execute(to_sql(arel, binds), name).each(as: :hash) do |row|
+        @connection.query_options.merge!(as: :hash)
+        select_result(to_sql(arel, binds), name, binds).each do |row|
           @connection.next_result while @connection.more_results?
           return row
         end
+      ensure
+        @connection.query_options.merge!(as: :array)
       end
 
       # Returns an array of arrays containing the field values.
       # Order is the same as that returned by +columns+.
       def select_rows(sql, name = nil, binds = [])
-        result = execute(sql, name)
+        result = select_result(sql, name, binds)
         @connection.next_result while @connection.more_results?
         result.to_a
       end
+
+      def select_result(sql, name = nil, binds = []) # :nodoc:
+        if without_prepared_statement?(binds)
+          execute_and_free(sql, name) { |result| result }
+        else
+          exec_stmt_and_free(sql, name, binds, cache_stmt: true) { |_, result| result }
+        end
+      end
+      private :select_result
 
       # Executes the SQL statement in the context of this connection.
       def execute(sql, name = nil)
@@ -128,29 +139,59 @@ module ActiveRecord
         super
       end
 
-      def exec_query(sql, name = 'SQL', binds = [], prepare: false)
-        result = execute(sql, name)
-        @connection.next_result while @connection.more_results?
-        ActiveRecord::Result.new(result.fields, result.to_a)
+      def exec_query(sql, name = 'SQL', binds = [], prepare: false) # :nodoc:
+        if without_prepared_statement?(binds)
+          execute_and_free(sql, name) do |result|
+            ActiveRecord::Result.new(result.fields, result.to_a) if result
+          end
+        else
+          exec_stmt_and_free(sql, name, binds, cache_stmt: prepare) do |_, result|
+            ActiveRecord::Result.new(result.fields, result.to_a) if result
+          end
+        end
       end
-
-      alias exec_without_stmt exec_query
-
-      def exec_insert(sql, name, binds, pk = nil, sequence_name = nil)
-        execute to_sql(sql, binds), name
-      end
-
-      def exec_delete(sql, name, binds)
-        execute to_sql(sql, binds), name
-        @connection.affected_rows
-      end
-      alias :exec_update :exec_delete
 
       def last_inserted_id(result)
         @connection.last_id
       end
 
       private
+
+      def exec_stmt_and_free(sql, name, binds, cache_stmt: false)
+        if @connection
+          # make sure we carry over any changes to ActiveRecord::Base.default_timezone that have been
+          # made since we established the connection
+          @connection.query_options[:database_timezone] = ActiveRecord::Base.default_timezone
+        end
+
+        type_casted_binds = binds.map { |attr| type_cast(attr.value_for_database) }
+
+        log(sql, name, binds) do
+          if !cache_stmt
+            stmt = @connection.prepare(sql)
+          else
+            cache = @statements[sql] ||= {
+              stmt: @connection.prepare(sql)
+            }
+            stmt = cache[:stmt]
+          end
+
+          begin
+            result = stmt.execute(*type_casted_binds)
+          rescue Mysql2::Error => e
+            if !cache_stmt
+              stmt.close
+            else
+              @statements.delete(sql)
+            end
+            raise e
+          end
+
+          ret = yield stmt, result
+          stmt.close if !cache_stmt
+          ret
+        end
+      end
 
       def connect
         @connection = Mysql2::Client.new(@config)

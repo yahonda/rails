@@ -1,4 +1,5 @@
 require 'active_record/connection_adapters/abstract_adapter'
+require 'active_record/connection_adapters/statement_pool'
 require 'active_record/connection_adapters/mysql/column'
 require 'active_record/connection_adapters/mysql/explain_pretty_printer'
 require 'active_record/connection_adapters/mysql/schema_creation'
@@ -52,11 +53,20 @@ module ActiveRecord
       INDEX_TYPES  = [:fulltext, :spatial]
       INDEX_USINGS = [:btree, :hash]
 
+      class StatementPool < ConnectionAdapters::StatementPool
+        private
+
+        def dealloc(stmt)
+          stmt[:stmt].close
+        end
+      end
+
       def initialize(connection, logger, connection_options, config)
         super(connection, logger, config)
         @quoted_column_names, @quoted_table_names = {}, {}
 
         @visitor = Arel::Visitors::MySQL.new self
+        @statements = StatementPool.new(self.class.type_cast_config_to_integer(config.fetch(:statement_limit) { 1000 }))
 
         if self.class.type_cast_config_to_boolean(config.fetch(:prepared_statements) { true })
           @prepared_statements = true
@@ -92,6 +102,12 @@ module ActiveRecord
       end
 
       def supports_bulk_alter? #:nodoc:
+        true
+      end
+
+      # Returns true, since this connection adapter supports prepared statement
+      # caching.
+      def supports_statement_cache?
         true
       end
 
@@ -231,9 +247,20 @@ module ActiveRecord
         MySQL::ExplainPrettyPrinter.new.pp(result, elapsed)
       end
 
+      def select_all(arel, name = nil, binds = [])
+        result = if ExplainRegistry.collect? && prepared_statements
+          unprepared_statement { super }
+        else
+          super
+        end
+        @connection.next_result while @connection.more_results?
+        result
+      end
+
+      # Clears the prepared statements cache.
       def clear_cache!
-        super
         reload_type_map
+        @statements.clear
       end
 
       # Executes the SQL statement in the context of this connection.
@@ -247,6 +274,15 @@ module ActiveRecord
       def execute_and_free(sql, name = nil) # :nodoc:
         yield execute(sql, name)
       end
+
+      def exec_delete(sql, name, binds) # :nodoc:
+        if without_prepared_statement?(binds)
+          execute_and_free(sql, name) { @connection.affected_rows }
+        else
+          exec_stmt_and_free(sql, name, binds) { |stmt| stmt.affected_rows }
+        end
+      end
+      alias :exec_update :exec_delete
 
       def begin_db_transaction
         execute "BEGIN"

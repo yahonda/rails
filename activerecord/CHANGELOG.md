@@ -1,3 +1,7 @@
+*   Add prepared statements support for `Mysql2Adapter`.
+
+    *Ryuta Kamizono*
+
 *   Added `numeric` helper into migrations.
 
     Example:
