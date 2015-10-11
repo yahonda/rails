@@ -29,6 +29,9 @@ module ActiveRecord
         end
 
         def add_column_options!(sql, options)
+          if options[:column].type == :timestamp && !options[:primary_key]
+            sql << " NULL" unless options[:null] == false || options_include_default?(options)
+          end
           if options[:charset]
             sql << " CHARACTER SET #{options[:charset]}"
           end

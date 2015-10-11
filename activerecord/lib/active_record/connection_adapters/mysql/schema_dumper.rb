@@ -32,7 +32,10 @@ module ActiveRecord
         end
 
         def schema_type(column)
-          if column.sql_type == 'tinyblob'
+          case column.sql_type
+          when /\Atimestamp\b/
+            :timestamp
+          when 'tinyblob'
             :blob
           else
             super

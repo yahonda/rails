@@ -83,6 +83,10 @@ module ActiveRecord
         def create_column_definition(name, type)
           MySQL::ColumnDefinition.new(name, type)
         end
+
+        def aliased_types(name, fallback)
+          fallback
+        end
       end
 
       class Table < ActiveRecord::ConnectionAdapters::Table
