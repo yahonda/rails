@@ -125,6 +125,10 @@ module ActiveRecord
         version >= '5.6.4'
       end
 
+      def supports_virtual_columns?
+        version >= '5.7.5'
+      end
+
       def supports_advisory_locks?
         true
       end

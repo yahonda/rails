@@ -1,3 +1,17 @@
+*   Add Generated Columns support for MySQL 5.7.
+    Generated Columns is a new feature available in MySQL 5.7.5 and up.
+    See https://dev.mysql.com/doc/refman/5.7/en/create-table.html.
+
+    Example:
+
+        create_table :generated_columns do |t|
+          t.string  :name
+          t.virtual :upper_name,  type: :string,  as: 'UPPER(name)'
+          t.virtual :name_length, type: :integer, as: 'LENGTH(name)', virtual: :stored
+        end
+
+    *Ryuta Kamizono*
+
 *   Added `numeric` helper into migrations.
 
     Example:

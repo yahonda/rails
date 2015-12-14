@@ -25,6 +25,8 @@ module ActiveRecord
         def column_options(o)
           column_options = super
           column_options[:charset] = o.charset
+          column_options[:as] = o.as
+          column_options[:virtual] = o.virtual
           column_options
         end
 
@@ -34,6 +36,15 @@ module ActiveRecord
           end
           if options[:collation]
             sql << " COLLATE #{options[:collation]}"
+          end
+          if options[:as]
+            sql << " AS (#{options[:as]})"
+            case options[:virtual]
+            when true
+              sql << " VIRTUAL"
+            when :stored
+              sql << " STORED"
+            end
           end
           super
         end

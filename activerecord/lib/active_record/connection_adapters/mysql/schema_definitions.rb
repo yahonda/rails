@@ -54,10 +54,14 @@ module ActiveRecord
         def unsigned_decimal(*args, **options)
           args.each { |name| column(name, :unsigned_decimal, options) }
         end
+
+        def virtual(*args, **options)
+          args.each { |name| column(name, :virtual, options) }
+        end
       end
 
       class ColumnDefinition < ActiveRecord::ConnectionAdapters::ColumnDefinition
-        attr_accessor :charset, :unsigned
+        attr_accessor :charset, :unsigned, :as, :virtual
       end
 
       class TableDefinition < ActiveRecord::ConnectionAdapters::TableDefinition
@@ -65,6 +69,7 @@ module ActiveRecord
 
         def new_column_definition(name, type, options) # :nodoc:
           column = super
+          column.type = options[:type] if column.type == :virtual
           case column.type
           when :primary_key
             column.type = :integer
@@ -75,6 +80,8 @@ module ActiveRecord
           end
           column.unsigned ||= options[:unsigned]
           column.charset = options[:charset]
+          column.as = options[:as]
+          column.virtual = options[:virtual]
           column
         end
 

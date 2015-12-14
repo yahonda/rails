@@ -21,11 +21,21 @@ module ActiveRecord
         def prepare_column_options(column)
           spec = super
           spec[:unsigned] = 'true' if column.unsigned?
+          if column.virtual?
+            table_name = column.instance_variable_get(:@table_name)
+            sql = "SELECT generation_expression FROM information_schema.columns" \
+                  " WHERE table_schema = #{quote(@config[:database])}" \
+                  "   AND table_name = #{quote(table_name)}" \
+                  "   AND column_name = #{quote(column.name)}"
+            expression = select_value(sql, 'SCHEMA')
+            spec[:as] = expression.inspect
+            spec[:virtual] = /VIRTUAL/ === column.extra ? 'true' : ':stored'
+          end
           spec
         end
 
         def migration_keys
-          super + [:unsigned]
+          super + [:unsigned, :as, :virtual]
         end
 
         private

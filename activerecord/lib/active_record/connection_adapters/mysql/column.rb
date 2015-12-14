@@ -31,6 +31,10 @@ module ActiveRecord
           extra == 'auto_increment'
         end
 
+        def virtual?
+          /(?:VIRTUAL|STORED) GENERATED/ === extra
+        end
+
         private
 
         def extract_default
