@@ -65,26 +65,27 @@ module ActiveRecord
           attribute_name = attribute.to_s
         end
 
-        column = klass.columns_hash[attribute_name]
         cast_type = klass.type_for_attribute(attribute_name)
         value = cast_type.serialize(value)
         value = klass.connection.type_cast(value)
+
+        if value.nil?
+          return klass.unscoped.where(table[attribute].eq(Arel::Nodes::Quoted.new(value)))
+        end
+
+        column = klass.columns_hash[attribute_name]
         if value.is_a?(String) && column.limit
           value = value.to_s[0, column.limit]
         end
 
-        comparison = if !options[:case_sensitive] && !value.nil?
+        comparison = if !options[:case_sensitive]
           # will use SQL LOWER function before comparison, unless it detects a case insensitive collation
-          klass.connection.case_insensitive_comparison(table, attribute, column, value)
+          klass.connection.case_insensitive_comparison(table[attribute], column)
         else
-          klass.connection.case_sensitive_comparison(table, attribute, column, value)
+          klass.connection.case_sensitive_comparison(table[attribute], column)
         end
-        if value.nil?
-          klass.unscoped.where(comparison)
-        else
-          bind = Relation::QueryAttribute.new(attribute.to_s, value, Type::Value.new)
-          klass.unscoped.where(comparison, bind)
-        end
+        bind = Relation::QueryAttribute.new(attribute_name, value, Type::Value.new)
+        klass.unscoped.where(comparison, bind)
       rescue RangeError
         klass.none
       end

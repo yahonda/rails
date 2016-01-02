@@ -752,21 +752,15 @@ module ActiveRecord
         SQL
       end
 
-      def case_sensitive_comparison(table, attribute, column, value)
-        if value.nil? || column.case_sensitive?
-          super
-        else
-          table[attribute].eq(Arel::Nodes::Bin.new(Arel::Nodes::BindParam.new))
-        end
+      def case_sensitive_comparison(attribute, column, value = Arel::Nodes::BindParam.new)
+        value = Arel::Nodes::Bin.new(value) unless column.case_sensitive?
+        super
       end
 
-      def case_insensitive_comparison(table, attribute, column, value)
-        if column.case_sensitive?
-          super
-        else
-          table[attribute].eq(Arel::Nodes::BindParam.new)
-        end
+      def can_perform_case_insensitive_comparison_for?(column)
+        column.case_sensitive?
       end
+      private :can_perform_case_insensitive_comparison_for?
 
       # In MySQL 5.7.5 and up, ONLY_FULL_GROUP_BY affects handling of queries that use
       # DISTINCT and ORDER BY. It requires the ORDER BY columns in the select list for
