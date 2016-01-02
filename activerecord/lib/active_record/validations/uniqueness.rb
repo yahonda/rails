@@ -78,12 +78,9 @@ module ActiveRecord
           value = value.to_s[0, column.limit]
         end
 
-        comparison = if !options[:case_sensitive]
-          # will use SQL LOWER function before comparison, unless it detects a case insensitive collation
-          klass.connection.case_insensitive_comparison(table[attribute], column)
-        else
-          klass.connection.case_sensitive_comparison(table[attribute], column)
-        end
+        comparison = klass.connection.uniqueness_comparison(
+          table[attribute], column, options[:case_sensitive], Arel::Nodes::BindParam.new
+        )
         bind = Relation::QueryAttribute.new(attribute_name, value, Type::Value.new)
         klass.unscoped.where(comparison, bind)
       rescue RangeError

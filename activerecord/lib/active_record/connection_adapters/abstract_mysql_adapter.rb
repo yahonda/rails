@@ -752,8 +752,8 @@ module ActiveRecord
         SQL
       end
 
-      def case_sensitive_comparison(attribute, column, value = Arel::Nodes::BindParam.new)
-        value = Arel::Nodes::Bin.new(value) unless column.case_sensitive?
+      def uniqueness_comparison(attribute, column, case_sensitive, value)
+        value = Arel::Nodes::Bin.new(value) if case_sensitive && !column.case_sensitive?
         super
       end
 

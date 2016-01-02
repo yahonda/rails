@@ -391,12 +391,8 @@ module ActiveRecord
       def release_savepoint(name = nil)
       end
 
-      def case_sensitive_comparison(attribute, column, value = Arel::Nodes::BindParam.new)
-        attribute.eq(value)
-      end
-
-      def case_insensitive_comparison(attribute, column, value = Arel::Nodes::BindParam.new)
-        if can_perform_case_insensitive_comparison_for?(column)
+      def uniqueness_comparison(attribute, column, case_sensitive, value)
+        if !case_sensitive && can_perform_case_insensitive_comparison_for?(column)
           value = attribute.relation.lower(value)
           attribute = attribute.lower
         end
