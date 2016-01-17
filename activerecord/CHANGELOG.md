@@ -1,3 +1,8 @@
+*   Deprecate `{insert|update|delete}_sql` in `DatabaseStatements`.
+    Use the `{insert|update|delete}` public methods instead.
+
+    *Ryuta Kamizono*
+
 *   Added `numeric` helper into migrations.
 
     Example:
