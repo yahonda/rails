@@ -324,6 +324,14 @@ module ActiveRecord
         end
       end
 
+      def test_expression_index
+        with_example_table do
+          @connection.add_index 'ex', -> { 'mod(id, 10), abs(number)' }, name: 'expression'
+          index = @connection.indexes('ex').find { |idx| idx.name == 'expression' }
+          assert_equal 'mod(id, 10), abs(number)', index.columns
+        end
+      end
+
       def test_columns_for_distinct_zero_orders
         assert_equal "posts.id",
           @connection.columns_for_distinct("posts.id", [])

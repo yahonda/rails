@@ -197,9 +197,10 @@ HEADER
       def indexes(table, stream)
         if (indexes = @connection.indexes(table)).any?
           add_index_statements = indexes.map do |index|
+            format = index.columns.is_a?(String) ? '-> { %s }' : '%s'
             statement_parts = [
               "add_index #{remove_prefix_and_suffix(index.table).inspect}",
-              index.columns.inspect,
+              format % index.columns.inspect,
               "name: #{index.name.inspect}",
             ]
             statement_parts << 'unique: true' if index.unique

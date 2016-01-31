@@ -171,7 +171,7 @@ class SchemaDumperTest < ActiveRecord::TestCase
   end
 
   def test_schema_dumps_index_columns_in_right_order
-    index_definition = standard_dump.split(/\n/).grep(/add_index.*companies/).first.strip
+    index_definition = standard_dump.split(/\n/).grep(/add_index.*company_index/).first.strip
     if current_adapter?(:Mysql2Adapter, :PostgreSQLAdapter)
       assert_equal 'add_index "companies", ["firm_id", "type", "rating"], name: "company_index", using: :btree', index_definition
     else
@@ -259,6 +259,11 @@ class SchemaDumperTest < ActiveRecord::TestCase
     def test_schema_dump_allows_array_of_decimal_defaults
       output = standard_dump
       assert_match %r{t\.decimal\s+"decimal_array_default",\s+default: \["1.23", "3.45"\],\s+array: true}, output
+    end
+
+    def test_schema_dump_expression_indices
+      index_definition = standard_dump.split(/\n/).grep(/add_index.*company_expression_index/).first.strip
+      assert_equal 'add_index "companies", -> { "lower((name)::text)" }, name: "company_expression_index", using: :btree', index_definition
     end
 
     if ActiveRecord::Base.connection.supports_extensions?

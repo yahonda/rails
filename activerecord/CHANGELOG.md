@@ -1,3 +1,16 @@
+*   Add Expression Indexes support for PostgreSQL.
+
+    Example:
+
+        create_table :users do |t|
+          t.string :name
+          t.index -> { 'lower(name)' }
+        end
+
+    Fixes #21765, #21819.
+
+    *Ryuta Kamizono*
+
 *   Added `numeric` helper into migrations.
 
     Example:
