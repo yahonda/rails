@@ -56,15 +56,6 @@ module ActiveRecord
         super(connection, logger, config)
         @quoted_column_names, @quoted_table_names = {}, {}
 
-        @visitor = Arel::Visitors::MySQL.new self
-
-        if self.class.type_cast_config_to_boolean(config.fetch(:prepared_statements) { true })
-          @prepared_statements = true
-          @visitor.extend(DetermineIfPreparableVisitor)
-        else
-          @prepared_statements = false
-        end
-
         if version < '5.0.0'
           raise "Your version of MySQL (#{full_version.match(/^\d+\.\d+\.\d+/)[0]}) is too old. Active Record supports MySQL >= 5.0."
         end
