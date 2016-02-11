@@ -3,17 +3,14 @@ module ActiveRecord
     module MySQL
       module ColumnDumper
         def column_spec_for_primary_key(column)
-          spec = {}
           if column.bigint?
-            spec[:id] = ':bigint'
+            spec = { id: :bigint.inspect }
             spec[:default] = schema_default(column) || 'nil' unless column.auto_increment?
             spec[:unsigned] = 'true' if column.unsigned?
-          elsif column.auto_increment?
-            spec[:unsigned] = 'true' if column.unsigned?
-            return if spec.empty?
+          elsif default_primary_key?(column) && column.unsigned?
+            spec = { unsigned: 'true' }
           else
-            spec[:id] = schema_type(column).inspect
-            spec.merge!(prepare_column_options(column).delete_if { |key, _| [:name, :type, :null].include?(key) })
+            spec = super
           end
           spec
         end
@@ -29,6 +26,10 @@ module ActiveRecord
         end
 
         private
+
+        def default_primary_key?(column)
+          super && column.auto_increment?
+        end
 
         def schema_type(column)
           if column.sql_type == 'tinyblob'
