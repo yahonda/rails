@@ -15,7 +15,7 @@ module ActiveRecord
       def column_spec_for_primary_key(column)
         return if column.type == :integer
         spec = { id: schema_type(column).inspect }
-        spec.merge!(prepare_column_options(column).delete_if { |key, _| [:name, :type].include?(key) })
+        spec.merge!(prepare_column_options(column).delete_if { |key, _| [:name, :type, :null].include?(key) })
       end
 
       # This can be overridden on an Adapter level basis to support other
