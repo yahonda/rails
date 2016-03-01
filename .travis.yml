@@ -11,7 +11,9 @@ before_install:
   - cd $TRAVIS_BUILD_DIR
 before_script:
   - bundle update
-cache: bundler
+cache:
+  - bundler
+  - rvm
 env:
   matrix:
     - "GEM=railties"
