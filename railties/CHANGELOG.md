@@ -14,8 +14,9 @@
 
 ## Rails 5.0.0.beta3 (February 24, 2016) ##
 
-*   Alias `rake` with `rails_command` in the Rails Application Templates API
-    following Rails 5 convention of preferring "rails" to "rake" to run tasks.
+*   Add `rails_command` to the Rails Application Templates API. This is similar
+    to `rake`, but will execute commands (such as "db:migrate") following Rails
+    5 convention of using `rails ...` (rather than `rake ...`) to run tasks.
 
     *claudiob*
 
