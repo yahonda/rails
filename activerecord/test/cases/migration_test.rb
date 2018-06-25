@@ -1181,6 +1181,7 @@ class CopyMigrationsTest < ActiveRecord::TestCase
   end
 
   def test_unknown_migration_version_should_raise_an_argument_error
+    # TODO: Need to suppress `-- find_migration_compatibility(1.0)` message here
     assert_raise(ArgumentError) { ActiveRecord::Migration[1.0] }
   end
 end
