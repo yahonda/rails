@@ -15,13 +15,23 @@ module ActiveRecord
             end
           end
 
-          class V5_1 < ActiveRecord::Migration::Compatibility::V5_1
+          class V6_0
+            include ActiveRecord::ConnectionAdapters::MigrationCompatibility::V6_0
+          end
+
+          class V5_2 < V6_0
+            include ActiveRecord::ConnectionAdapters::MigrationCompatibility::V5_2
+          end
+
+          class V5_1 < V5_2
+            include ActiveRecord::ConnectionAdapters::MigrationCompatibility::V5_1
             def create_table(table_name, options = {})
               super(table_name, options: "ENGINE=InnoDB", **options)
             end
           end
 
-          class V5_0 < ActiveRecord::Migration::Compatibility::V5_0
+          class V5_0 < V5_1
+            include ActiveRecord::ConnectionAdapters::MigrationCompatibility::V5_0
             def create_table(table_name, options = {})
               if (options[:id] != :bigint)
                 if [:integer, :bigint].include?(options[:id]) && !options.key?(:default)
