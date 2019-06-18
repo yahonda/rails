@@ -2,7 +2,7 @@
 
 module ActiveRecord
   class LogSubscriber < ActiveSupport::LogSubscriber
-    IGNORE_PAYLOAD_NAMES = ["SCHEMA", "EXPLAIN"]
+    IGNORE_PAYLOAD_NAMES = ["EXPLAIN"]
 
     class_attribute :backtrace_cleaner, default: ActiveSupport::BacktraceCleaner.new
 
