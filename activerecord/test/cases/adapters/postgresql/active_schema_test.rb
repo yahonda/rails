@@ -28,6 +28,7 @@ class PostgresqlActiveSchemaTest < ActiveRecord::PostgreSQLTestCase
   end
 
   def test_add_index
+    # with option ?
     # add_index calls index_name_exists? which can't work since execute is stubbed
     ActiveRecord::ConnectionAdapters::PostgreSQLAdapter.define_method(:index_name_exists?) { |*| false }
 
