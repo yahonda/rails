@@ -73,6 +73,7 @@ module ActiveRecord
         alias :exec_update :exec_delete
 
         def begin_db_transaction #:nodoc:
+          p "SQLite3::DatabaseStatements#begin_db_transaction is called"
           log("begin transaction", "TRANSACTION") { @connection.transaction }
         end
 
@@ -81,6 +82,7 @@ module ActiveRecord
         end
 
         def exec_rollback_db_transaction #:nodoc:
+          p "SQLite3::DatabaseStatements#exec_rollback_db_transaction is called"
           log("rollback transaction", "TRANSACTION") { @connection.rollback }
         end
 
