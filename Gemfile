@@ -79,6 +79,7 @@ group :cable do
   gem "websocket-client-simple", github: "matthewd/websocket-client-simple", branch: "close-race", require: false
 
   gem "blade", require: false, platforms: [:ruby]
+  gem "thin", github: "yahonda/thin", branch: "diag_365", require: false, platforms: [:ruby]
   gem "blade-sauce_labs_plugin", require: false, platforms: [:ruby]
   gem "sprockets-export", require: false
 end
