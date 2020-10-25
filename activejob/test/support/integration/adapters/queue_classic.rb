@@ -23,6 +23,7 @@ module QueueClassicJobsManager
 
     QC.default_conn_adapter.disconnect
     QC.default_conn_adapter = nil
+    p 'FORK!'
     @pid = fork do
       worker = QC::Worker.new(q_name: "integration_tests")
       worker.start
