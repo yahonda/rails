@@ -41,6 +41,7 @@ group :doc do
   gem "w3c_validators", "~> 1.3.6"
   gem "kindlerb", "~> 1.2.0"
   gem "rouge"
+  gem 'pandoc-ruby'
 end
 
 # Active Support

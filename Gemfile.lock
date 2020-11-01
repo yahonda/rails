@@ -369,6 +369,7 @@ GEM
     nokogiri (1.10.10-x86-mingw32)
       mini_portile2 (~> 2.4.0)
     os (1.1.1)
+    pandoc-ruby (2.1.4)
     parallel (1.19.2)
     parser (2.7.2.0)
       ast (~> 2.4.1)
@@ -597,6 +598,7 @@ DEPENDENCIES
   minitest-retry
   mysql2 (~> 0.5)!
   nokogiri (>= 1.8.1)
+  pandoc-ruby
   pg (~> 1.1)
   psych (~> 3.0)
   puma
