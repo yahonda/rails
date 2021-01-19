@@ -42,6 +42,7 @@ module Rails
         end
 
         def load_tests(argv)
+          pp 'CALLED!'
           patterns = extract_filters(argv)
 
           tests = Rake::FileList[patterns.any? ? patterns : default_test_glob]
