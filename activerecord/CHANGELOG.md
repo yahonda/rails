@@ -1,3 +1,7 @@
+*   Bump minimum PostgreSQL version to 9.5.
+
+    *Yasuo Honda*
+
 *   Fixtures for `has_many :through` associations now load timestamps on join tables
 
     Given this fixture:

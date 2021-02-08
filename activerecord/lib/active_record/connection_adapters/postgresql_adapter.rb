@@ -210,7 +210,7 @@ module ActiveRecord
       end
 
       def supports_insert_on_conflict?
-        database_version >= 90500
+        true
       end
       alias supports_insert_on_duplicate_skip? supports_insert_on_conflict?
       alias supports_insert_on_duplicate_update? supports_insert_on_conflict?
@@ -351,8 +351,9 @@ module ActiveRecord
       end
 
       def supports_pgcrypto_uuid?
-        database_version >= 90400
+        true
       end
+      deprecate :supports_pgcrypto_uuid?
 
       def supports_optimizer_hints?
         unless defined?(@has_pg_hint_plan)
@@ -448,8 +449,8 @@ module ActiveRecord
       end
 
       def check_version # :nodoc:
-        if database_version < 90300
-          raise "Your version of PostgreSQL (#{database_version}) is too old. Active Record supports PostgreSQL >= 9.3."
+        if database_version < 90500
+          raise "Your version of PostgreSQL (#{database_version}) is too old. Active Record supports PostgreSQL >= 9.5."
         end
       end
 
