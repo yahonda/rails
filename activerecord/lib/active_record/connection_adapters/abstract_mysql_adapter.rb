@@ -949,6 +949,7 @@ module ActiveRecord
           end.join(", ")
 
           # ...and send them all in one query
+          pp variable_assignments
           raw_execute("SET #{encoding} #{sql_mode_assignment} #{variable_assignments}", "SCHEMA")
         end
 

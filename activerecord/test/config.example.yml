@@ -20,6 +20,7 @@ connections:
     <% end %>
       variables:
         time_zone: '+00:00'
+        innodb_snapshot_isolation: 'OFF'
     arunit2:
       username: rails
       encoding: utf8mb4
@@ -56,6 +57,7 @@ connections:
     <% end %>
       variables:
         time_zone: '+00:00'
+        innodb_snapshot_isolation: 'OFF'
     arunit2:
       username: rails
       encoding: utf8mb4
