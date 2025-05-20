@@ -27,7 +27,12 @@ module ActiveRecord
 
         def virtual?
           # We assume every generated column is virtual, no matter the concrete type
-          @generated.present?
+          # PostgreSQL 18 supports virtual generated columns that are not stored
+          @generated.present? # TODO: Consider false positives
+        end
+
+        def virtual_stored?
+          virtual? && @generated == "s"
         end
 
         def has_default?

@@ -40,13 +40,13 @@ if ActiveRecord::Base.lease_connection.supports_virtual_columns?
 
     def test_virtual_column
       column = VirtualColumn.columns_hash["upper_name"]
-      assert_predicate column, :virtual?
+      assert_predicate column, :virtual_stored?
       assert_equal "RAILS", VirtualColumn.take.upper_name
     end
 
     def test_stored_column
       column = VirtualColumn.columns_hash["name_length"]
-      assert_predicate column, :virtual?
+      assert_predicate column, :virtual_stored?
       assert_equal 5, VirtualColumn.take.name_length
     end
 
@@ -56,29 +56,29 @@ if ActiveRecord::Base.lease_connection.supports_virtual_columns?
       end
       VirtualColumn.reset_column_information
       column = VirtualColumn.columns_hash["lower_name"]
-      assert_predicate column, :virtual?
+      assert_predicate column, :virtual_stored?
       assert_equal "rails", VirtualColumn.take.lower_name
     end
 
     if ActiveRecord::Base.lease_connection.database_version >= 180_000
       def test_change_table_as_stored_false
         @connection.change_table :virtual_columns do |t|
-          t.virtual :lower_name, type: :string, as: "LOWER(name)", stored: false
+          t.virtual :reversed_name, type: :string, as: "REVERSE(name)", stored: false
         end
         VirtualColumn.reset_column_information
-        column = VirtualColumn.columns_hash["lower_name"]
+        column = VirtualColumn.columns_hash["reversed_name"]
         assert_predicate column, :virtual?
-        assert_equal "rails", VirtualColumn.take.lower_name
+        assert_equal "sliaR", VirtualColumn.take.reversed_name
       end
 
       def test_change_table_without_stored_option
         @connection.change_table :virtual_columns do |t|
-          t.virtual :lower_name, type: :string, as: "LOWER(name)"
+          t.virtual :ascii_name, type: :string, as: "ASCII(name)"
         end
         VirtualColumn.reset_column_information
-        column = VirtualColumn.columns_hash["lower_name"]
+        column = VirtualColumn.columns_hash["ascii_name"]
         assert_predicate column, :virtual?
-        assert_equal "rails", VirtualColumn.take.lower_name
+        assert_equal "82", VirtualColumn.take.ascii_name
       end
 
     else # ActiveRecord::Base.lease_connection.database_version < 18_000
