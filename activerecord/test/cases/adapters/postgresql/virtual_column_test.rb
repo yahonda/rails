@@ -60,15 +60,38 @@ if ActiveRecord::Base.lease_connection.supports_virtual_columns?
       assert_equal "rails", VirtualColumn.take.lower_name
     end
 
-    def test_non_persisted_column
-      message = <<~MSG
+    if ActiveRecord::Base.lease_connection.database_version >= 18_000
+      def test_change_table_as_stored_false
+        @connection.change_table :virtual_columns do |t|
+          t.virtual :lower_name, type: :string, as: "LOWER(name)", stored: false
+        end
+        VirtualColumn.reset_column_information
+        column = VirtualColumn.columns_hash["lower_name"]
+        assert_predicate column, :virtual?
+        assert_equal "rails", VirtualColumn.take.lower_name
+      end
+
+      def test_change_table_without_stored_option
+        @connection.change_table :virtual_columns do |t|
+          t.virtual :lower_name, type: :string, as: "LOWER(name)"
+        end
+        VirtualColumn.reset_column_information
+        column = VirtualColumn.columns_hash["lower_name"]
+        assert_predicate column, :virtual?
+        assert_equal "rails", VirtualColumn.take.lower_name
+      end
+
+    else # ActiveRecord::Base.lease_connection.database_version < 18_000
+      def test_non_persisted_column
+        message = <<~MSG
         PostgreSQL currently does not support VIRTUAL (not persisted) generated columns.
         Specify 'stored: true' option for 'invalid_definition'
-      MSG
+        MSG
 
-      assert_raise ArgumentError, message do
-        @connection.change_table :virtual_columns do |t|
-          t.virtual :invalid_definition, type: :string, as: "LOWER(name)"
+        assert_raise ArgumentError, message do
+          @connection.change_table :virtual_columns do |t|
+            t.virtual :invalid_definition, type: :string, as: "LOWER(name)"
+          end
         end
       end
     end
