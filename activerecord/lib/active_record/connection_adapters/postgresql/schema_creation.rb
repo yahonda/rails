@@ -129,14 +129,7 @@ module ActiveRecord
             if as = options[:as]
               stored = options[:stored]
 
-              if stored == false && database_version < 18_000
-                raise ArgumentError, <<~MSG
-                  PostgreSQL versions before 18 do not support VIRTUAL (not persisted) generated columns.
-                  Specify 'stored: true' option for '#{options[:column].name}'
-                MSG
-              end
-
-              if stored.nil? && database_version < 18_000
+              if (stored != true) && database_version < 18_000
                 raise ArgumentError, <<~MSG
                   PostgreSQL versions before 18 do not support VIRTUAL (not persisted) generated columns.
                   Specify 'stored: true' option for '#{options[:column].name}'
