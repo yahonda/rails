@@ -60,7 +60,7 @@ if ActiveRecord::Base.lease_connection.supports_virtual_columns?
       assert_equal "rails", VirtualColumn.take.lower_name
     end
 
-    if ActiveRecord::Base.lease_connection.database_version >= 18_000
+    if ActiveRecord::Base.lease_connection.database_version >= 180_000
       def test_change_table_as_stored_false
         @connection.change_table :virtual_columns do |t|
           t.virtual :lower_name, type: :string, as: "LOWER(name)", stored: false
