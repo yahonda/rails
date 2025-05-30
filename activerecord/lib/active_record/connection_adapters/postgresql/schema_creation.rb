@@ -6,6 +6,7 @@ module ActiveRecord
       class SchemaCreation < SchemaCreation # :nodoc:
         private
           delegate :quoted_include_columns_for_index, to: :@conn
+          delegate :database_version, to: :@conn
 
           def visit_AlterTable(o)
             sql = super
@@ -151,7 +152,15 @@ module ActiveRecord
             if o.temporary
               " TEMPORARY"
             elsif o.unlogged
-              " UNLOGGED"
+              if database_version >= 180_000 && o.options&.match?(/partition\s+by/i)
+                warn <<~MSG
+                  UNLOGGED tables cannot be partitioned in PostgreSQL 18 and later.
+                  Ignoring UNLOGGED option for table '#{o.name}' with options: #{o.options.inspect}.
+                MSG
+                nil
+              else
+                " UNLOGGED"
+              end
             end
           end
       end

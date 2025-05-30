@@ -46,8 +46,11 @@ class PostgresqlHstoreTest < ActiveRecord::PostgreSQLTestCase
     @connection.enable_extension "hstore"
     assert @connection.extension_enabled?("hstore")
   ensure
-    # Restore column(s) dropped by `drop extension hstore cascade;`
-    load_schema
+    # Ignore PostgreSQL 18+ warning for UNLOGGED partitioned tables during schema reload
+    silence_warnings do
+      # Restore column(s) dropped by `drop extension hstore cascade;`
+      load_schema
+    end
   end
 
   def test_column

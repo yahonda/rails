@@ -890,9 +890,11 @@ class SchemaCreateTableOptionsTest < ActiveRecord::PostgreSQLTestCase
 
     options = "PARTITION BY LIST (kind)"
 
-    @connection.create_table "trains", id: false, options: options do |t|
-      t.string :name
-      t.string :kind
+    silence_warnings do
+      @connection.create_table "trains", id: false, options: options do |t|
+        t.string :name
+        t.string :kind
+      end
     end
 
     output = dump_table_schema "trains"
@@ -905,9 +907,11 @@ class SchemaCreateTableOptionsTest < ActiveRecord::PostgreSQLTestCase
 
     options = "PARTITION BY RANGE (created_at)"
 
-    @connection.create_table "trains", id: false, options: options do |t|
-      t.string :name
-      t.datetime :created_at, null: false
+    silence_warnings do
+      @connection.create_table "trains", id: false, options: options do |t|
+        t.string :name
+        t.datetime :created_at, null: false
+      end
     end
 
     output = dump_table_schema "trains"
