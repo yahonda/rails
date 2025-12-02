@@ -1,3 +1,11 @@
+*   Configurable maxmimum streaming chunk size
+
+    Makes sure that byte ranges for blobs don't exceed 100mb by default.
+    Content ranges that are too big can result in denial of service.
+
+    *Gannon McGibbon*
+
+
 ## Rails 7.2.3 (October 28, 2025) ##
 
 *   Fix `config.active_storage.touch_attachment_records` to work with eager loading.
