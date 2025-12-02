@@ -1,3 +1,11 @@
+*   Configurable maxmimum streaming chunk size
+
+    Makes sure that byte ranges for blobs don't exceed 100mb by default.
+    Content ranges that are too big can result in denial of service.
+
+    *Gannon McGibbon*
+
+
 ## Rails 8.1.2 (January 08, 2026) ##
 
 *   Restore ADC when signing URLs with IAM for GCS
