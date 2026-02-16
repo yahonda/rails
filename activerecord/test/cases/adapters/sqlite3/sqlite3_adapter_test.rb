@@ -1089,6 +1089,16 @@ module ActiveRecord
         end
       end
 
+      def test_rowid_changes_column_equality
+        cast_type = @conn.lookup_cast_type("integer")
+        type_metadata = SqlTypeMetadata.new(sql_type: "integer", type: :integer)
+
+        rowid_column = SQLite3::Column.new("id", cast_type, nil, type_metadata, true, nil, rowid: true)
+        regular_column = SQLite3::Column.new("id", cast_type, nil, type_metadata, true, nil, rowid: false)
+
+        assert_not_equal rowid_column, regular_column
+      end
+
       def test_alter_table_with_fk_preserves_rows_when_referenced_table_altered
         conn = SQLite3Adapter.new(database: ":memory:", adapter: "sqlite3", strict: false)
 
