@@ -2,8 +2,12 @@
 
 require "sidekiq/api"
 
-require "sidekiq/testing"
-Sidekiq::Testing.disable!
+if Sidekiq.respond_to? :testing! # 8.1.1
+  Sidekiq.testing!(:disabled)
+else
+  require "sidekiq/testing"
+  Sidekiq::Testing.disable!
+end
 
 module SidekiqJobsManager
   def setup
