@@ -1,3 +1,7 @@
+*   Fix support for table names containing hyphens.
+
+    *Evgeniy Demin*
+
 *   Fix column deduplication for SQLite3 and PostgreSQL virtual (generated) columns.
 
     `Column#==` and `Column#hash` now account for `virtual?` so that the
