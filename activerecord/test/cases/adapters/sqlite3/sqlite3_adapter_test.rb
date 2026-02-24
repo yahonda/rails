@@ -1099,6 +1099,16 @@ module ActiveRecord
         assert_not_equal rowid_column, regular_column
       end
 
+      def test_generated_type_changes_column_equality
+        cast_type = @conn.lookup_cast_type("string")
+        type_metadata = SqlTypeMetadata.new(sql_type: "varchar", type: :string)
+
+        stored_column = SQLite3::Column.new("name", cast_type, nil, type_metadata, true, nil, generated_type: :stored)
+        virtual_column = SQLite3::Column.new("name", cast_type, nil, type_metadata, true, nil, generated_type: :virtual)
+
+        assert_not_equal stored_column, virtual_column
+      end
+
       def test_alter_table_with_fk_preserves_rows_when_referenced_table_altered
         conn = SQLite3Adapter.new(database: ":memory:", adapter: "sqlite3", strict: false)
 
