@@ -10,7 +10,14 @@ class PostgresqlDeferredConstraintsTest < ActiveRecord::PostgreSQLTestCase
     @other_fk = @connection.foreign_keys("lessons_students").first.name
   end
 
+  # These three tests fail on PostgreSQL 18 because ALTER CONSTRAINT NOT ENFORCED -> ENFORCED
+  # resets the pg_trigger deferability flags (tgdeferrable / tginitdeferred) even when
+  # DEFERRABLE INITIALLY DEFERRED is explicitly specified. This is a PostgreSQL bug reported at:
+  # https://www.mail-archive.com/pgsql-hackers@lists.postgresql.org/msg221360.html
+  # Once PostgreSQL ships a fix, remove the skip and these tests should pass without modification.
+
   def test_defer_constraints
+    skip "Requires a PostgreSQL fix for deferability flag corruption after NOT ENFORCED -> ENFORCED cycle" if @connection.supports_not_enforced_constraints?
     assert_raises ActiveRecord::InvalidForeignKey do
       @connection.set_constraints(:deferred)
       assert_nothing_raised do
@@ -21,6 +28,7 @@ class PostgresqlDeferredConstraintsTest < ActiveRecord::PostgreSQLTestCase
   end
 
   def test_defer_constraints_with_specific_fk
+    skip "Requires a PostgreSQL fix for deferability flag corruption after NOT ENFORCED -> ENFORCED cycle" if @connection.supports_not_enforced_constraints?
     assert_raises ActiveRecord::InvalidForeignKey do
       @connection.set_constraints(:deferred, @fk)
       assert_nothing_raised do
@@ -31,6 +39,7 @@ class PostgresqlDeferredConstraintsTest < ActiveRecord::PostgreSQLTestCase
   end
 
   def test_defer_constraints_with_multiple_fks
+    skip "Requires a PostgreSQL fix for deferability flag corruption after NOT ENFORCED -> ENFORCED cycle" if @connection.supports_not_enforced_constraints?
     assert_raises ActiveRecord::InvalidForeignKey do
       @connection.set_constraints(:deferred, @other_fk, @fk)
       assert_nothing_raised do

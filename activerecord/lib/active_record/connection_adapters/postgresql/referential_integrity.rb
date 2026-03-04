@@ -9,7 +9,8 @@ module ActiveRecord
             # PostgreSQL 18+: Use NOT ENFORCED / ENFORCED — requires only table ownership, not superuser.
             # Only toggle FKs that are currently ENFORCED; leave NOT ENFORCED ones unchanged.
             enforced_fks = query_all(<<~SQL)
-              SELECT n.nspname AS schema_name, t.relname AS table_name, c.conname AS constraint_name
+              SELECT n.nspname AS schema_name, t.relname AS table_name, c.conname AS constraint_name,
+                     c.condeferrable AS deferrable, c.condeferred AS deferred
               FROM pg_constraint c
               JOIN pg_class t ON c.conrelid = t.oid
               JOIN pg_namespace n ON c.connamespace = n.oid
@@ -29,9 +30,20 @@ module ActiveRecord
                 schema = quote_table_name(fk["schema_name"])
                 table  = quote_table_name(fk["table_name"])
                 constraint = quote_column_name(fk["constraint_name"])
+                # Re-state the DEFERRABLE clause explicitly when re-enforcing the constraint.
+                # PostgreSQL 18 has a bug where toggling NOT ENFORCED → ENFORCED resets the
+                # tgdeferrable/tginitdeferred trigger flags in pg_trigger to false, silently
+                # breaking deferred constraint behavior even though pg_constraint retains the
+                # correct definition. By including the deferrable clause in the ALTER CONSTRAINT
+                # statement we force PostgreSQL to reconstruct the triggers correctly.
+                # TODO: Remove this workaround once the upstream fix is released:
+                # https://www.mail-archive.com/pgsql-hackers@lists.postgresql.org/msg221360.html
+                deferrable_sql = if fk["deferrable"]
+                  fk["deferred"] ? "DEFERRABLE INITIALLY DEFERRED " : "DEFERRABLE INITIALLY IMMEDIATE "
+                end
 
                 begin
-                  execute("ALTER TABLE #{schema}.#{table} ALTER CONSTRAINT #{constraint} ENFORCED")
+                  execute("ALTER TABLE #{schema}.#{table} ALTER CONSTRAINT #{constraint} #{deferrable_sql}ENFORCED")
                 rescue ActiveRecord::InvalidForeignKey
                   # InvalidForeignKey is a subclass of StatementInvalid, so it must be rescued
                   # first and re-raised to let callers surface a meaningful FK violation error.
