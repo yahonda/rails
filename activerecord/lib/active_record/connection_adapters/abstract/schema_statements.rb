@@ -1203,6 +1203,10 @@ module ActiveRecord
       # [<tt>:deferrable</tt>]
       #   (PostgreSQL only) Specify whether or not the foreign key should be deferrable. Valid values are booleans or
       #   +:deferred+ or +:immediate+ to specify the default behavior. Defaults to +false+.
+      # [<tt>:enforced</tt>]
+      #   (PostgreSQL 18+ only) Specify whether or not the foreign key should be enforced.
+      #   Defaults to +true+. When set to +false+, the constraint is not checked during DML
+      #   but may be used by the query planner as a hint.
       def add_foreign_key(from_table, to_table, **options)
         return unless use_foreign_keys?
 

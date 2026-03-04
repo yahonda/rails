@@ -43,6 +43,7 @@ class PostgreSQLReferentialIntegrityTest < ActiveRecord::PostgreSQLTestCase
   end
 
   def test_should_reraise_invalid_foreign_key_exception_and_show_warning
+    skip if @connection.supports_not_enforced_constraints?
     @connection.extend MissingSuperuserPrivileges
 
     warning = capture(:stderr) do
@@ -96,11 +97,147 @@ class PostgreSQLReferentialIntegrityTest < ActiveRecord::PostgreSQLTestCase
   end
 
   def test_only_catch_active_record_errors_others_bubble_up
+    skip if @connection.supports_not_enforced_constraints?
     @connection.extend ProgrammerMistake
 
     assert_raises ArgumentError do
       @connection.disable_referential_integrity { }
     end
+  end
+
+  def test_disable_referential_integrity_uses_not_enforced_on_pg18
+    skip unless @connection.supports_not_enforced_constraints?
+
+    @connection.create_table :ri_test_pg18_parents, force: true
+    @connection.create_table :ri_test_pg18_children, force: true do |t|
+      t.bigint :parent_id, null: false
+    end
+    @connection.add_foreign_key :ri_test_pg18_children, :ri_test_pg18_parents, column: :parent_id, name: :ri_test_pg18_fk
+
+    fk_enforced_during_block = nil
+    @connection.disable_referential_integrity do
+      fk_enforced_during_block = @connection.select_value(<<~SQL)
+        SELECT c.conenforced FROM pg_constraint c WHERE c.conname = 'ri_test_pg18_fk'
+      SQL
+    end
+
+    assert_equal false, fk_enforced_during_block,
+      "FK should be NOT ENFORCED inside the disable_referential_integrity block"
+
+    fk_enforced_after = @connection.select_value(<<~SQL)
+      SELECT c.conenforced FROM pg_constraint c WHERE c.conname = 'ri_test_pg18_fk'
+    SQL
+
+    assert_equal true, fk_enforced_after,
+      "FK should be restored to ENFORCED after the disable_referential_integrity block"
+  ensure
+    @connection.drop_table :ri_test_pg18_children, if_exists: true
+    @connection.drop_table :ri_test_pg18_parents, if_exists: true
+  end
+
+  def test_not_enforced_foreign_keys_remain_not_enforced_after_block
+    skip unless @connection.supports_not_enforced_constraints?
+
+    @connection.create_table :ri_test_parents, force: true
+    @connection.create_table :ri_test_children, force: true do |t|
+      t.bigint :parent_id, null: false
+    end
+    @connection.add_foreign_key :ri_test_children, :ri_test_parents, column: :parent_id, name: :ri_test_fk, enforced: false
+
+    @connection.disable_referential_integrity { }
+
+    result = @connection.select_value(<<~SQL)
+      SELECT c.conenforced
+      FROM pg_constraint c
+      WHERE c.conname = 'ri_test_fk'
+    SQL
+
+    assert_equal false, result, "NOT ENFORCED FK should remain NOT ENFORCED after disable_referential_integrity block"
+  ensure
+    @connection.drop_table :ri_test_children, if_exists: true
+    @connection.drop_table :ri_test_parents, if_exists: true
+  end
+
+  def test_enforced_foreign_keys_are_restored_to_enforced_after_block
+    skip unless @connection.supports_not_enforced_constraints?
+
+    @connection.create_table :ri_test_parents, force: true
+    @connection.create_table :ri_test_children, force: true do |t|
+      t.bigint :parent_id, null: false
+    end
+    @connection.add_foreign_key :ri_test_children, :ri_test_parents, column: :parent_id, name: :ri_test_fk
+
+    fk_enforced_during_block = nil
+    @connection.disable_referential_integrity do
+      fk_enforced_during_block = @connection.select_value(<<~SQL)
+        SELECT c.conenforced
+        FROM pg_constraint c
+        WHERE c.conname = 'ri_test_fk'
+      SQL
+    end
+
+    assert_equal false, fk_enforced_during_block,
+      "FK should be NOT ENFORCED inside the disable_referential_integrity block"
+
+    fk_enforced_after = @connection.select_value(<<~SQL)
+      SELECT c.conenforced
+      FROM pg_constraint c
+      WHERE c.conname = 'ri_test_fk'
+    SQL
+
+    assert_equal true, fk_enforced_after,
+      "FK should be restored to ENFORCED after disable_referential_integrity block"
+  ensure
+    @connection.drop_table :ri_test_children, if_exists: true
+    @connection.drop_table :ri_test_parents, if_exists: true
+  end
+
+  def test_deferrable_foreign_keys_are_restored_after_block
+    skip unless @connection.supports_not_enforced_constraints?
+
+    @connection.create_table :ri_test_parents, force: true
+    @connection.create_table :ri_test_children, force: true do |t|
+      t.bigint :parent_id, null: false
+    end
+    @connection.add_foreign_key :ri_test_children, :ri_test_parents,
+      column: :parent_id, name: :ri_test_deferred_fk, deferrable: :deferred
+
+    @connection.disable_referential_integrity { }
+
+    condeferrable = @connection.select_value("SELECT c.condeferrable FROM pg_constraint c WHERE c.conname = 'ri_test_deferred_fk'")
+    condeferred = @connection.select_value("SELECT c.condeferred FROM pg_constraint c WHERE c.conname = 'ri_test_deferred_fk'")
+
+    assert condeferrable, "FK should remain DEFERRABLE after disable_referential_integrity block"
+    assert condeferred, "FK should remain INITIALLY DEFERRED after disable_referential_integrity block"
+  ensure
+    @connection.drop_table :ri_test_children, if_exists: true
+    @connection.drop_table :ri_test_parents, if_exists: true
+  end
+
+  def test_validated_foreign_keys_are_restored_after_block
+    skip unless @connection.supports_not_enforced_constraints?
+
+    @connection.create_table :ri_test_parents, force: true
+    @connection.create_table :ri_test_children, force: true do |t|
+      t.bigint :parent_id, null: false
+    end
+    @connection.add_foreign_key :ri_test_children, :ri_test_parents,
+      column: :parent_id, name: :ri_test_validated_fk
+
+    convalidated_before = @connection.select_value(<<~SQL)
+      SELECT c.convalidated FROM pg_constraint c WHERE c.conname = 'ri_test_validated_fk'
+    SQL
+    assert convalidated_before, "FK should be VALIDATED before disable_referential_integrity block"
+
+    @connection.disable_referential_integrity { }
+
+    convalidated_after = @connection.select_value(<<~SQL)
+      SELECT c.convalidated FROM pg_constraint c WHERE c.conname = 'ri_test_validated_fk'
+    SQL
+    assert convalidated_after, "FK should be restored to VALIDATED after disable_referential_integrity block"
+  ensure
+    @connection.drop_table :ri_test_children, if_exists: true
+    @connection.drop_table :ri_test_parents, if_exists: true
   end
 
   def test_all_foreign_keys_valid_having_foreign_keys_in_multiple_schemas

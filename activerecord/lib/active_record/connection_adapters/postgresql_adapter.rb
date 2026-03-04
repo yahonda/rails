@@ -255,6 +255,10 @@ module ActiveRecord
         true
       end
 
+      def supports_not_enforced_constraints?
+        database_version >= 18_00_00
+      end
+
       def supports_views?
         true
       end

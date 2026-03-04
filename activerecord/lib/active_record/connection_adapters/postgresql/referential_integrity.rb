@@ -5,36 +5,77 @@ module ActiveRecord
     module PostgreSQL
       module ReferentialIntegrity # :nodoc:
         def disable_referential_integrity # :nodoc:
-          original_exception = nil
+          if supports_not_enforced_constraints?
+            # PostgreSQL 18+: Use NOT ENFORCED / ENFORCED — requires only table ownership, not superuser.
+            # Only toggle FKs that are currently ENFORCED; leave NOT ENFORCED ones unchanged.
+            enforced_fks = query_all(<<~SQL)
+              SELECT n.nspname AS schema_name, t.relname AS table_name, c.conname AS constraint_name
+              FROM pg_constraint c
+              JOIN pg_class t ON c.conrelid = t.oid
+              JOIN pg_namespace n ON c.connamespace = n.oid
+              WHERE c.contype = 'f'
+                AND c.conenforced = true
+            SQL
 
-          begin
-            transaction(requires_new: true) do
-              execute(tables.collect { |name| "ALTER TABLE #{quote_table_name(name)} DISABLE TRIGGER ALL" }.join(";"))
+            enforced_fks.each do |fk|
+              execute("ALTER TABLE #{quote_table_name(fk["schema_name"])}.#{quote_table_name(fk["table_name"])} " \
+                      "ALTER CONSTRAINT #{quote_column_name(fk["constraint_name"])} NOT ENFORCED")
             end
-          rescue ActiveRecord::ActiveRecordError => e
-            original_exception = e
-          end
 
-          begin
-            yield
-          rescue ActiveRecord::InvalidForeignKey => e
-            warn <<-WARNING
-WARNING: Rails was not able to disable referential integrity.
+            begin
+              yield
+            ensure
+              enforced_fks.each do |fk|
+                schema = quote_table_name(fk["schema_name"])
+                table  = quote_table_name(fk["table_name"])
+                constraint = quote_column_name(fk["constraint_name"])
 
-This is most likely caused due to missing permissions.
-Rails needs superuser privileges to disable referential integrity.
-
-    cause: #{original_exception&.message}
-
-            WARNING
-            raise e
-          end
-
-          begin
-            transaction(requires_new: true) do
-              execute(tables.collect { |name| "ALTER TABLE #{quote_table_name(name)} ENABLE TRIGGER ALL" }.join(";"))
+                begin
+                  execute("ALTER TABLE #{schema}.#{table} ALTER CONSTRAINT #{constraint} ENFORCED")
+                rescue ActiveRecord::InvalidForeignKey
+                  # InvalidForeignKey is a subclass of StatementInvalid, so it must be rescued
+                  # first and re-raised to let callers surface a meaningful FK violation error.
+                  raise
+                rescue ActiveRecord::StatementInvalid
+                  # The transaction may be in an aborted state due to a SQL error in the block.
+                  # Since ALTER CONSTRAINT is transactional, the subsequent rollback will restore
+                  # the FK states automatically. Stop trying to restore further constraints.
+                  break
+                end
+              end
             end
-          rescue ActiveRecord::ActiveRecordError
+          else
+            original_exception = nil
+
+            begin
+              transaction(requires_new: true) do
+                execute(tables.collect { |name| "ALTER TABLE #{quote_table_name(name)} DISABLE TRIGGER ALL" }.join(";"))
+              end
+            rescue ActiveRecord::ActiveRecordError => e
+              original_exception = e
+            end
+
+            begin
+              yield
+            rescue ActiveRecord::InvalidForeignKey => e
+              warn <<~WARNING
+                WARNING: Rails was not able to disable referential integrity.
+
+                This is most likely caused due to missing permissions.
+                Rails needs superuser privileges to disable referential integrity.
+
+                    cause: #{original_exception&.message}
+
+              WARNING
+              raise e
+            end
+
+            begin
+              transaction(requires_new: true) do
+                execute(tables.collect { |name| "ALTER TABLE #{quote_table_name(name)} ENABLE TRIGGER ALL" }.join(";"))
+              end
+            rescue ActiveRecord::ActiveRecordError
+            end
           end
         end
 

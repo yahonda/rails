@@ -659,6 +659,61 @@ if ActiveRecord::Base.lease_connection.supports_foreign_keys?
           end
         end
 
+        if ActiveRecord::Base.lease_connection.supports_not_enforced_constraints?
+          def test_not_enforced_foreign_key
+            assert_queries_match(/\("id"\)\s+NOT ENFORCED\W*\z/i) do
+              @connection.add_foreign_key :astronauts, :rockets, column: "rocket_id", enforced: false
+            end
+
+            foreign_keys = @connection.foreign_keys("astronauts")
+            assert_equal 1, foreign_keys.size
+
+            fk = foreign_keys.first
+            assert_not_predicate fk, :enforced?
+          end
+
+          def test_enforced_foreign_key_default
+            @connection.add_foreign_key :astronauts, :rockets, column: "rocket_id"
+
+            foreign_keys = @connection.foreign_keys("astronauts")
+            assert_equal 1, foreign_keys.size
+
+            fk = foreign_keys.first
+            assert_predicate fk, :enforced?
+          end
+
+          def test_schema_dumping_with_not_enforced
+            @connection.add_foreign_key :astronauts, :rockets, column: "rocket_id", enforced: false
+
+            output = dump_table_schema "astronauts"
+
+            assert_match %r{\s+add_foreign_key "astronauts", "rockets", enforced: false$}, output
+          end
+
+          def test_schema_dumping_enforced_default_omits_option
+            @connection.add_foreign_key :astronauts, :rockets, column: "rocket_id"
+
+            output = dump_table_schema "astronauts"
+
+            assert_no_match %r{enforced:}, output
+          end
+
+          def test_schema_dumping_enforced_true_omits_option
+            @connection.add_foreign_key :astronauts, :rockets, column: "rocket_id", enforced: true
+
+            output = dump_table_schema "astronauts"
+
+            assert_no_match %r{enforced: true}, output
+          end
+
+          def test_not_enforced_with_validate_true_raises
+            assert_raises(ArgumentError) do
+              @connection.add_foreign_key :astronauts, :rockets, column: "rocket_id",
+                enforced: false, validate: true
+            end
+          end
+        end
+
         def test_does_not_create_foreign_keys_when_bypassed_by_config
           require "active_record/connection_adapters/sqlite3_adapter"
           connection = ActiveRecord::ConnectionAdapters::SQLite3Adapter.new(
