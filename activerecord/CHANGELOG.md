@@ -1,3 +1,28 @@
+*   Move adapter-specific migration compatibility logic to per-adapter modules.
+
+    Each built-in connection adapter (PostgreSQL, MySQL, SQLite3) now defines
+    its own `MigrationCompatibility` module under its namespace, with versioned
+    submodules that override migration methods to replicate historical
+    behavior. The adapter-specific module is mixed into migration instances at
+    `exec_migration` time via a new `migration_compatibility_module_for` hook
+    on the abstract adapter, allowing third-party adapters to implement their
+    own compatibility behavior without monkey-patching
+    `ActiveRecord::Migration::Compatibility`.
+
+    All `adapter_name` string comparisons have been removed from
+    `ActiveRecord::Migration::Compatibility`.
+
+    The documented interfaces for a migration body are `#up`, `#down`, and
+    `#change`; those go through `exec_migration`, which is where the
+    adapter-specific compatibility module is mixed in. Migrations that override
+    `#migrate(direction)` directly skip `exec_migration`, so `Migrator` also
+    mixes the compatibility module in before invoking `#migrate`, keeping
+    MySQL `ENGINE=InnoDB`, PostgreSQL `uuid_generate_v4()` defaults, deferrable
+    foreign keys, V5_1 `change_column` splitting, etc. working regardless of
+    which entry point the migration defines.
+
+    *Yasuo Honda*
+
 *   Bump the minimum PostgreSQL version to 10.0.
 
     As part of this change, `supports_pgcrypto_uuid?` is deprecated because
