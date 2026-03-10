@@ -11,6 +11,7 @@ require "active_record/connection_adapters/mysql/schema_definitions"
 require "active_record/connection_adapters/mysql/schema_dumper"
 require "active_record/connection_adapters/mysql/schema_statements"
 require "active_record/connection_adapters/mysql/type_metadata"
+require "active_record/connection_adapters/mysql/migration_compatibility"
 
 module ActiveRecord
   module ConnectionAdapters
@@ -95,6 +96,10 @@ module ActiveRecord
 
       def mariadb? # :nodoc:
         /mariadb/i.match?(full_version)
+      end
+
+      def migration_compatibility_module_for(migration_class) # :nodoc:
+        MySQL::MigrationCompatibility.module_for(migration_class)
       end
 
       def supports_bulk_alter?

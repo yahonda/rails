@@ -656,6 +656,20 @@ module ActiveRecord
       def drop_virtual_table(*) # :nodoc:
       end
 
+      # Returns a module to be mixed into migration instances for adapter-specific
+      # compatibility behavior. Adapters can define their own
+      # <tt>Migration::Compatibility</tt> module (under their adapter namespace)
+      # with versioned submodules that override migration methods to replicate
+      # historical behavior for older migrations.
+      #
+      # This allows third-party adapters to implement their own compatibility
+      # behavior without modifying the generic migration compatibility code.
+      #
+      # Returns +nil+ by default (no adapter-specific compatibility behavior).
+      def migration_compatibility_module_for(migration_class) # :nodoc:
+        nil
+      end
+
       def advisory_locks_enabled? # :nodoc:
         supports_advisory_locks? && @advisory_locks_enabled
       end

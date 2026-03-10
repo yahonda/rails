@@ -1007,6 +1007,9 @@ module ActiveRecord
 
     def exec_migration(conn, direction)
       @connection = conn
+      if (mod = conn.migration_compatibility_module_for(self.class))
+        extend mod
+      end
       if respond_to?(:change)
         if direction == :down
           revert { change }
