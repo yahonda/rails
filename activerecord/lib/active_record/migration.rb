@@ -569,7 +569,7 @@ module ActiveRecord
   # are in a Migration with <tt>self.disable_ddl_transaction!</tt>.
   class Migration
     autoload :CommandRecorder, "active_record/migration/command_recorder"
-    autoload :Compatibility, "active_record/migration/compatibility"
+    autoload :Compatibility, "active_record/connection_adapters/abstract/migration_compatibility"
     autoload :DefaultSchemaVersionsFormatter, "active_record/migration/default_schema_versions_formatter"
     autoload :JoinTable, "active_record/migration/join_table"
     autoload :ExecutionStrategy, "active_record/migration/execution_strategy"
@@ -1007,6 +1007,9 @@ module ActiveRecord
 
     def exec_migration(conn, direction)
       @connection = conn
+      if (mod = conn.migration_compatibility_module_for(self.class))
+        extend mod
+      end
       if respond_to?(:change)
         if direction == :down
           revert { change }
@@ -1560,6 +1563,7 @@ module ActiveRecord
         Base.logger.info "#{message} #{migration.name} (#{migration.version})" if Base.logger
 
         ddl_transaction(migration) do
+          apply_adapter_compatibility_module(migration)
           migration.migrate(@direction)
           record_version_state_after_migrating(migration.version)
         end
@@ -1568,6 +1572,33 @@ module ActiveRecord
         msg << "this and " if use_transaction?(migration)
         msg << "all later migrations canceled:\n\n#{e}"
         raise StandardError, msg, e.backtrace
+      end
+
+      # Adapter-specific compatibility (e.g. MySQL <tt>ENGINE=InnoDB</tt>,
+      # PostgreSQL <tt>uuid_generate_v4()</tt> defaults, deferrable foreign
+      # keys, V5_1 <tt>change_column</tt> splitting, ...) lives in per-adapter
+      # <tt>MigrationCompatibility</tt> modules and is normally mixed into the
+      # migration instance by <tt>Migration#exec_migration</tt>. Migrations
+      # that override <tt>#migrate(direction)</tt> directly bypass that path,
+      # so the mixin never happens and the compatibility behavior silently
+      # disappears. Apply the mixin here as well so the behavior is preserved
+      # no matter whether the migration body lives in <tt>#up</tt> /
+      # <tt>#down</tt> / <tt>#change</tt> (the documented interfaces) or
+      # <tt>#migrate</tt>. Extending the same module a second time is a no-op,
+      # so the double application that happens on the documented paths is
+      # harmless.
+      def apply_adapter_compatibility_module(migration)
+        migration_class = migration.is_a?(Class) ? migration : migration.class
+        return if migration_class.instance_method(:migrate).owner == ActiveRecord::Migration
+
+        mod = connection.migration_compatibility_module_for(migration_class)
+        return unless mod
+
+        if migration.is_a?(Class)
+          migration.include(mod)
+        else
+          migration.extend(mod)
+        end
       end
 
       def target
