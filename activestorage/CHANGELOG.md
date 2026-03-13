@@ -19,6 +19,17 @@
 
     *Mike Dalessio*
 
+*   Prevent glob injection in `DiskService#delete_prefixed`.
+
+    Escape glob metacharacters in the resolved path before passing to `Dir.glob`.
+
+    Note that this change breaks any existing code that is relying on `delete_prefixed` to expand
+    glob metacharacters. This change presumes that is unintended behavior (as other storage services
+    do not respect these metacharacters).
+
+    *Mike Dalessio*
+
+
 ## Rails 8.1.2 (January 08, 2026) ##
 
 *   Restore ADC when signing URLs with IAM for GCS
