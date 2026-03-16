@@ -1,3 +1,8 @@
+*   Skip blank attribute names in tag helpers to avoid generating invalid HTML.
+
+    *Mike Dalessio*
+
+
 ## Rails 7.2.3 (October 28, 2025) ##
 
 *   Fix `javascript_include_tag` `type` option to accept either strings and symbols.
