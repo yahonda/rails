@@ -1,3 +1,8 @@
+*   Skip blank attribute names in tag helpers to avoid generating invalid HTML.
+
+    *Mike Dalessio*
+
+
 ## Rails 8.0.4 (October 28, 2025) ##
 
 *   Restore `add_default_name_and_id` method.
