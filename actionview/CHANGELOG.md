@@ -1,5 +1,7 @@
 *   Skip blank attribute names in tag helpers to avoid generating invalid HTML.
 
+    [CVE-2026-33168]
+
     *Mike Dalessio*
 
 
