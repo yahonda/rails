@@ -1,3 +1,9 @@
+*   Fix possible XSS in DebugExceptions middleware
+
+    [CVE-2026-33167]
+
+    *John Hawthorn*
+
 *   Skip blank attribute names in tag helpers to avoid generating invalid HTML.
 
     *Mike Dalessio*
