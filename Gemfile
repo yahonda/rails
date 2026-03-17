@@ -84,7 +84,7 @@ gem "msgpack", ">= 1.7.0", require: false
 gem "bootsnap", ">= 1.4.4", require: false
 gem "webrick", require: false
 gem "jbuilder", require: false
-gem "web-console", require: false
+gem "web-console", "< 4.3.0", require: false
 
 # Action Pack and railties
 rack_version = ENV.fetch("RACK", "~> 3.0")
