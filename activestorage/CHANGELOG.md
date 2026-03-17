@@ -1,9 +1,23 @@
+*   Filter user supplied metadata in DirectUploadController
+
+    [CVE-2026-33173]
+
+    *Jean Boussier*
+
 *   Configurable maxmimum streaming chunk size
 
     Makes sure that byte ranges for blobs don't exceed 100mb by default.
     Content ranges that are too big can result in denial of service.
 
+    [CVE-2026-33174]
+
     *Gannon McGibbon*
+
+*   Limit range requests to a single range
+
+    [CVE-2026-33658]
+
+    *Jean Boussier*
 
 *   Prevent path traversal in `DiskService`.
 
@@ -16,6 +30,8 @@
 
     `DiskController` now explicitly rescues `InvalidKeyError` with appropriate HTTP status codes.
 
+    [CVE-2026-33195]
+
     *Mike Dalessio*
 
 *   Prevent glob injection in `DiskService#delete_prefixed`.
@@ -25,6 +41,8 @@
     Note that this change breaks any existing code that is relying on `delete_prefixed` to expand
     glob metacharacters. This change presumes that is unintended behavior (as other storage services
     do not respect these metacharacters).
+
+    [CVE-2026-33202]
 
     *Mike Dalessio*
 
