@@ -48,7 +48,7 @@ module ActiveRecord
     def execute
       return ActiveRecord::Result.empty if inserts.empty?
 
-      message = +"#{model} "
+      message = +"#{model.name} "
       message << "Bulk " if inserts.many?
       message << (on_duplicate == :update ? "Upsert" : "Insert")
       connection.exec_insert_all to_sql, message
