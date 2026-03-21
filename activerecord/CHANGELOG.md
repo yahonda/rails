@@ -1,3 +1,7 @@
+*   Fix `insert_all` and `upsert_all` log message when called on anonymous classes.
+
+    *Gabriel Sobrinho*
+
 *   Respect `ActiveRecord::SchemaDumper.ignore_tables` when dumping SQLite virtual tables.
 
     *Hans Schnedlitz*
