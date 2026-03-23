@@ -6,6 +6,20 @@
 
     *Pieter Visser*
 
+## Rails 8.1.2.1 (March 23, 2026) ##
+
+*   Fix possible XSS in DebugExceptions middleware
+
+    [CVE-2026-33167]
+
+    *John Hawthorn*
+
+*   Skip blank attribute names in tag helpers to avoid generating invalid HTML.
+
+    [CVE-2026-33168]
+
+    *Mike Dalessio*
+
 
 ## Rails 8.1.2 (January 08, 2026) ##
 

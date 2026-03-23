@@ -13,6 +13,11 @@
     *Edward Woodcock*
 
 
+## Rails 8.1.2.1 (March 23, 2026) ##
+
+*   No changes.
+
+
 ## Rails 8.1.2 (January 08, 2026) ##
 
 *   No changes.

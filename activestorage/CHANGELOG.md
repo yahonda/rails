@@ -3,6 +3,58 @@
     *Daichi KUDO*
 
 
+## Rails 8.1.2.1 (March 23, 2026) ##
+
+*   Filter user supplied metadata in DirectUploadController
+
+    [CVE-2026-33173]
+
+    *Jean Boussier*
+
+*   Configurable maxmimum streaming chunk size
+
+    Makes sure that byte ranges for blobs don't exceed 100mb by default.
+    Content ranges that are too big can result in denial of service.
+
+    [CVE-2026-33174]
+
+    *Gannon McGibbon*
+
+*   Limit range requests to a single range
+
+    [CVE-2026-33658]
+
+    *Jean Boussier*
+
+
+*   Prevent path traversal in `DiskService`.
+
+    `DiskService#path_for` now raises an `InvalidKeyError` when passed keys with dot segments (".",
+    ".."), or if the resolved path is outside the storage root directory.
+
+    `#path_for` also now consistently raises `InvalidKeyError` if the key is invalid in any way, for
+    example containing null bytes or having an incompatible encoding. Previously, the exception
+    raised may have been `ArgumentError` or `Encoding::CompatibilityError`.
+
+    `DiskController` now explicitly rescues `InvalidKeyError` with appropriate HTTP status codes.
+
+    [CVE-2026-33195]
+
+    *Mike Dalessio*
+
+*   Prevent glob injection in `DiskService#delete_prefixed`.
+
+    Escape glob metacharacters in the resolved path before passing to `Dir.glob`.
+
+    Note that this change breaks any existing code that is relying on `delete_prefixed` to expand
+    glob metacharacters. This change presumes that is unintended behavior (as other storage services
+    do not respect these metacharacters).
+
+    [CVE-2026-33202]
+
+    *Mike Dalessio*
+
+
 ## Rails 8.1.2 (January 08, 2026) ##
 
 *   Restore ADC when signing URLs with IAM for GCS
