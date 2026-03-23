@@ -1,3 +1,5 @@
+## Rails 7.2.3.1 (March 23, 2026) ##
+
 *   Skip blank attribute names in tag helpers to avoid generating invalid HTML.
 
     [CVE-2026-33168]

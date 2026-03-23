@@ -1,3 +1,8 @@
+## Rails 7.2.3.1 (March 23, 2026) ##
+
+*   No changes.
+
+
 ## Rails 7.2.3 (October 28, 2025) ##
 
 *   Fix SQLite3 data loss during table alterations with CASCADE foreign keys.

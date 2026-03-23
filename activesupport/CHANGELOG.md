@@ -1,3 +1,5 @@
+## Rails 7.2.3.1 (March 23, 2026) ##
+
 *   Reject scientific notation in NumberConverter
 
     [CVE-2026-33176]
