@@ -1,3 +1,5 @@
+## Rails 8.1.2.1 (March 23, 2026) ##
+
 *   Fix possible XSS in DebugExceptions middleware
 
     [CVE-2026-33167]
