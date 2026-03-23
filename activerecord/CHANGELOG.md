@@ -87,6 +87,11 @@
     *Martin-Alexander*
 
 
+## Rails 8.0.4.1 (March 23, 2026) ##
+
+*   No changes.
+
+
 ## Rails 8.0.4 (October 28, 2025) ##
 
 *   Fix SQLite3 data loss during table alterations with CASCADE foreign keys.

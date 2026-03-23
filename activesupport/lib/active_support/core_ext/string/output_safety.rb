@@ -128,7 +128,9 @@ module ActiveSupport # :nodoc:
         escaped_args = Array(args).map { |arg| explicit_html_escape_interpolated_argument(arg) }
       end
 
-      self.class.new(super(escaped_args))
+      new_safe_buffer = self.class.new(super(escaped_args))
+      new_safe_buffer.instance_variable_set(:@html_safe, @html_safe)
+      new_safe_buffer
     end
 
     attr_reader :html_safe
