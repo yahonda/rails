@@ -12,6 +12,27 @@
     *Jose Luis Duran*
 
 
+## Rails 7.2.3.1 (March 23, 2026) ##
+
+*   Reject scientific notation in NumberConverter
+
+    [CVE-2026-33176]
+
+    *Jean Boussier*
+
+*   Fix `SafeBuffer#%` to preserve unsafe status
+
+    [CVE-2026-33170]
+
+    *Jean Boussier*
+
+*   Improve performance of NumberToDelimitedConverter
+
+    [CVE-2026-33169]
+
+    *Jean Boussier*
+
+
 ## Rails 7.2.3 (October 28, 2025) ##
 
 *   Fix `Enumerable#sole` to return the full tuple instead of just the first element of the tuple.

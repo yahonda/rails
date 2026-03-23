@@ -3,7 +3,7 @@
 source "https://rubygems.org"
 gemspec
 
-gem "minitest"
+gem "minitest", "< 6"
 
 # We need a newish Rake since Active Job sets its test tasks' descriptions.
 gem "rake", ">= 13"
@@ -76,7 +76,7 @@ end
 gem "dalli", ">= 3.0.1", "< 5"
 gem "listen", "~> 3.3", require: false
 gem "libxml-ruby", platforms: :ruby
-gem "connection_pool", require: false
+gem "connection_pool", "< 3", require: false
 gem "rexml", require: false
 gem "msgpack", ">= 1.7.0", require: false
 
@@ -84,7 +84,7 @@ gem "msgpack", ">= 1.7.0", require: false
 gem "bootsnap", ">= 1.4.4", require: false
 gem "webrick", require: false
 gem "jbuilder", require: false
-gem "web-console", require: false
+gem "web-console", "< 4.3.0", require: false
 
 # Action Pack and railties
 rack_version = ENV.fetch("RACK", "~> 3.0")
@@ -100,7 +100,7 @@ gem "useragent", require: false
 group :job do
   gem "resque", require: false
   gem "resque-scheduler", require: false
-  gem "sidekiq", require: false
+  gem "sidekiq", "< 8", require: false
   gem "sucker_punch", require: false
   gem "delayed_job", require: false
   gem "queue_classic", ">= 4.0.0", require: false, platforms: :ruby

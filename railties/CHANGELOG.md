@@ -1,6 +1,12 @@
+
 *   Fixed the default Dockerfile to properly include the `vendor/` directory during `bundle install`.
 
     *Zhong Sheng*
+
+
+## Rails 7.2.3.1 (March 23, 2026) ##
+
+*   No changes.
 
 
 ## Rails 7.2.3 (October 28, 2025) ##

@@ -3,6 +3,15 @@
     *Said Kaldybaev*
 
 
+## Rails 7.2.3.1 (March 23, 2026) ##
+
+*   Skip blank attribute names in tag helpers to avoid generating invalid HTML.
+
+    [CVE-2026-33168]
+
+    *Mike Dalessio*
+
+
 ## Rails 7.2.3 (October 28, 2025) ##
 
 *   Fix `javascript_include_tag` `type` option to accept either strings and symbols.
