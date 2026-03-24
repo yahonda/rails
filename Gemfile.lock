@@ -76,7 +76,7 @@ PATH
       benchmark (>= 0.3)
       bigdecimal
       concurrent-ruby (~> 1.0, >= 1.3.1)
-      connection_pool (>= 2.2.5)
+      connection_pool (>= 2.2.5, < 3)
       drb
       i18n (>= 1.6, < 2)
       logger (>= 1.4.2)
