@@ -1,3 +1,5 @@
+## Rails 8.1.3 (March 24, 2026) ##
+
 *   Add `libvips` to generated `ci.yml`
 
     Conditionally adds `libvips` to `ci.yml`.

@@ -1,3 +1,5 @@
+## Rails 8.1.3 (March 24, 2026) ##
+
 *   Fix `JSONGemCoderEncoder` to correctly serialize custom object hash keys.
 
     When hash keys are custom objects whose `as_json` returns a Hash,

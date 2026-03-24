@@ -1,3 +1,5 @@
+## Rails 8.1.3 (March 24, 2026) ##
+
 *   Fix Ruby 4.0 delegator warning when calling inspect on attributes.
 
     *Hammad Khan*

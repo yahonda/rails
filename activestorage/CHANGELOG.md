@@ -1,3 +1,5 @@
+## Rails 8.1.3 (March 24, 2026) ##
+
 *   Fix `ActiveStorage::Blob` content type predicate methods to handle `nil`.
 
     *Daichi KUDO*
