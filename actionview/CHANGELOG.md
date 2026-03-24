@@ -1,3 +1,5 @@
+## Rails 8.0.5 (March 24, 2026) ##
+
 *   Fix encoding errors for string locals containing non-ASCII characters.
 
     *Kataoka Katsuki*

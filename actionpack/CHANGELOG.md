@@ -1,3 +1,5 @@
+## Rails 8.0.5 (March 24, 2026) ##
+
 *   Add `config.action_controller.live_streaming_excluded_keys` to control execution state sharing in ActionController::Live.
 
     When using ActionController::Live, actions are executed in a separate thread that shares
