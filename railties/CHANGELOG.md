@@ -1,4 +1,3 @@
-
 *   Fixed the default Dockerfile to properly include the `vendor/` directory during `bundle install`.
 
     *Zhong Sheng*
