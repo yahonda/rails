@@ -1,3 +1,8 @@
+*   MySQL error 1046 (`ER_NO_DB_ERROR: No database selected`) is now retryable as a `ConnectionFailed` exception
+
+    *Clay Harmon*
+
+
 ## Rails 8.1.3 (March 24, 2026) ##
 
 *   Fix `insert_all` and `upsert_all` log message when called on anonymous classes.
