@@ -7,8 +7,6 @@ module ActiveSupport
     class NumberToDelimitedConverter < NumberConverter # :nodoc:
       self.validate_float = true
 
-      DEFAULT_DELIMITER_REGEX = /(\d)(?=(\d\d\d)+(?!\d))/
-
       def convert
         parts.join(options[:separator])
       end
@@ -38,7 +36,7 @@ module ActiveSupport
         end
 
         def delimiter_pattern
-          options.fetch(:delimiter_pattern, DEFAULT_DELIMITER_REGEX)
+          options[:delimiter_pattern]
         end
     end
   end
