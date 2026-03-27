@@ -1,3 +1,12 @@
+*   Fix `titleize` inflector to consider Unicode characters
+
+    ```ruby
+    "ćasim đipa".titleize # => "Ćasim Đipa"
+    ```
+
+    *Eldin Guzin*
+
+
 ## Rails 8.1.3 (March 24, 2026) ##
 
 *   Fix `JSONGemCoderEncoder` to correctly serialize custom object hash keys.
