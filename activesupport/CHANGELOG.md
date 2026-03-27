@@ -1,3 +1,12 @@
+*   Fix `titleize` inflector to consider Unicode characters
+
+    ```ruby
+    "ćasim đipa".titleize # => "Ćasim Đipa"
+    ```
+
+    *Eldin Guzin*
+
+
 ## Rails 8.0.5 (March 24, 2026) ##
 
 *   Fix inflections to better handle overlapping acronyms.
