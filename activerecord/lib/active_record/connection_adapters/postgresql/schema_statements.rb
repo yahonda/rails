@@ -1113,6 +1113,11 @@ module ActiveRecord
             super
           end
 
+          def validate_table_length!(table_name)
+            _schema, table_name = extract_schema_qualified_name(table_name)
+            super
+          end
+
           def exclusion_constraint_name(table_name, **options)
             options.fetch(:name) do
               expression = options.fetch(:expression)
