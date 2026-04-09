@@ -1,3 +1,23 @@
+*   Add `query:` and `body:` kwargs to integration test request helpers.
+
+    `params:` was ambiguous for GET requests with `as: :json` — unclear
+    whether params should go in the query string or request body. This
+    caused failures in API-only apps which exclude `Rack::MethodOverride`.
+
+    Use `query:` to explicitly send params in the URL query string (any
+    HTTP method), and `body:` to send an encoded request body. They can
+    be combined.
+
+    `params:` retains existing behavior: GET → query string,
+    other methods → request body.
+
+        get  "/search", query: { q: "rails" }, as: :json
+        post "/search", query: { page: 1 }, body: { filters: {} }, as: :json
+
+    Fixes #57131.
+
+    *Denis Savchuk*
+
 *   Add `ActionDispatch::Request#safe_method?` and `#unsafe_method?`.
 
     `safe_method?` returns true for HTTP methods that are defined as safe per
