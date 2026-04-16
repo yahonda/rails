@@ -1,3 +1,12 @@
+*   Add offline fallback page to the PWA scaffold.
+
+    New Rails apps now include an `app/views/pwa/offline.html.erb` template and
+    a commented `get "offline"` route in `config/routes.rb`, alongside the existing
+    manifest and service worker. The service worker template also includes a
+    commented example for caching and serving the offline page.
+
+    *Juan Vasquez*
+
 *   Add `bin/rails query` command for running read-only database queries.
 
     Supports ActiveRecord expressions and raw SQL with JSON output.
