@@ -833,7 +833,7 @@ module ActiveRecord
       #
       #   CREATE INDEX index_suppliers_on_name ON suppliers(name)
       #
-      # ====== Creating a index which already exists
+      # ====== Creating an index which already exists
       #
       #   add_index(:suppliers, :name, if_not_exists: true)
       #
