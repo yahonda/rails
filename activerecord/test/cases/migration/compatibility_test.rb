@@ -648,6 +648,31 @@ module ActiveRecord
           connection.drop_table(:sub_testings, if_exists: true)
           ActiveRecord::Base.clear_cache!
         end
+
+        def test_datetime_columns_on_6_1_use_timestamp_regardless_of_datetime_type
+          with_postgresql_datetime_type(:timestamptz) do
+            migration = Class.new(ActiveRecord::Migration[6.1]) {
+              def up
+                create_table :legacy_datetime_testings do |t|
+                  t.datetime :via_table_definition
+                  t.datetime :to_be_changed
+                end
+                add_column :legacy_datetime_testings, :via_add_column, :datetime
+                change_column :legacy_datetime_testings, :to_be_changed, :datetime, default: -> { "CURRENT_TIMESTAMP" }
+              end
+            }.new
+
+            ActiveRecord::Migrator.new(:up, [migration], @schema_migration, @internal_metadata).migrate
+
+            columns_by_name = connection.columns(:legacy_datetime_testings).index_by(&:name)
+            %w[via_table_definition via_add_column to_be_changed].each do |name|
+              assert_match(/timestamp without time zone\z/, columns_by_name[name].sql_type,
+                           "expected :datetime in a Migration[6.1] to create `timestamp without time zone` even when datetime_type is :timestamptz (column #{name})")
+            end
+          end
+        ensure
+          connection.drop_table(:legacy_datetime_testings, if_exists: true)
+        end
       end
 
       if current_adapter?(:Mysql2Adapter, :TrilogyAdapter)
