@@ -500,6 +500,44 @@ module ActiveRecord
         connection.drop_table :more_testings rescue nil
       end
 
+      if current_adapter?(:SQLite3Adapter)
+        def test_add_belongs_to_on_6_0_forces_integer_type_on_sqlite_like_add_reference
+          create_migration = Class.new(ActiveRecord::Migration[6.0]) {
+            def version; 200 end
+            def migrate(x)
+              create_table :belongs_to_testings do |t|
+                t.string :test
+              end
+            end
+          }.new
+
+          reference_migration = Class.new(ActiveRecord::Migration[6.0]) {
+            def version; 201 end
+            def migrate(x)
+              add_reference :belongs_to_testings, :ref_target, type: :bigint
+            end
+          }.new
+
+          belongs_to_migration = Class.new(ActiveRecord::Migration[6.0]) {
+            def version; 202 end
+            def migrate(x)
+              add_belongs_to :belongs_to_testings, :belongs_target, type: :bigint
+            end
+          }.new
+
+          ActiveRecord::Migrator.new(:up, [create_migration, reference_migration, belongs_to_migration], @schema_migration, @internal_metadata).migrate
+
+          columns_by_name = connection.columns(:belongs_to_testings).index_by(&:name)
+
+          assert_match(/integer/i, columns_by_name["ref_target_id"].sql_type,
+            "add_reference on Migration[6.0] should override an explicit type: :bigint with legacy :integer on SQLite")
+          assert_match(/integer/i, columns_by_name["belongs_target_id"].sql_type,
+            "add_belongs_to on Migration[6.0] should match add_reference and override an explicit type: :bigint with legacy :integer on SQLite")
+        ensure
+          connection.drop_table :belongs_to_testings rescue nil
+        end
+      end
+
       def test_create_table_on_7_0
         long_table_name = "a" * (connection.table_name_length + 1)
         migration = Class.new(ActiveRecord::Migration[7.0]) {
