@@ -43,6 +43,52 @@ module ActiveRecord
         klass
       end
 
+      # Raised when a migration class would receive adapter-specific
+      # compatibility behavior from more than one connection adapter type
+      # in the same process. Typically the result of a single
+      # +ApplicationMigration+-style base class being shared across
+      # migrations targeting different database adapter types (for
+      # example, a PostgreSQL primary database and a MySQL animals
+      # database in a multi-database app), where the +include+ of the
+      # second adapter's compatibility module would silently leak its
+      # behavior into the first adapter's migrations.
+      class ConflictError < ActiveRecord::MigrationError
+      end
+
+      # Includes +mod+ on +target+ for the first compatible adapter that
+      # touches +target+, and reuses the same module on later runs. Raises
+      # +ConflictError+ if a *different* adapter's compatibility module is
+      # later applied to the same +target+ -- that would mean a single
+      # migration base class is shared across multiple adapter types in
+      # the same process, which would let one adapter's behavior leak
+      # into the other (e.g. PostgreSQL's +uuid_generate_v4()+ default
+      # firing during a MySQL migration on the same base class).
+      #
+      # Same-adapter repeats are idempotent: +Versioned#module_for+ caches
+      # the assembled module per migration class, so two PostgreSQL
+      # connections sharing one base class hand back the same module
+      # object and pass through without raising.
+      def self.apply(target, mod)
+        @applied ||= ObjectSpace::WeakMap.new
+        current = @applied[target]
+
+        if current && !current.equal?(mod)
+          raise ConflictError, <<~MSG.squish
+            Migration class #{target.name || target.inspect} has already been
+            associated with adapter compatibility from another database
+            adapter and cannot accept #{mod.inspect} as well. Use a distinct
+            migration base class per adapter type; see
+            https://guides.rubyonrails.org/active_record_multiple_databases.html#sharing-migration-helpers-across-different-database-adapters
+            for the recommended pattern.
+          MSG
+        end
+
+        unless target.include?(mod)
+          target.include(mod)
+          @applied[target] = mod
+        end
+      end
+
       # Mixin for per-adapter +MigrationCompatibility+ modules.
       #
       # An adapter's +MigrationCompatibility+ module should +extend+ this and
