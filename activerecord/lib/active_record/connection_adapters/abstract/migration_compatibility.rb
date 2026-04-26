@@ -52,14 +52,18 @@ module ActiveRecord
 
       module Versioned
         def module_for(migration_class)
-          @module_cache ||= {}
-          @module_cache[migration_class] ||= begin
-            mods = version_pairs
-              .select { |compat_class, _| migration_class <= compat_class }
-              .map { |_, mod| mod }
+          @module_cache ||= ObjectSpace::WeakMap.new
+          cached = @module_cache[migration_class]
+          return cached if cached
 
-            Module.new { mods.reverse_each { |m| include m } } if mods.any?
-          end
+          mods = version_pairs
+            .select { |compat_class, _| migration_class <= compat_class }
+            .map { |_, mod| mod }
+          return nil if mods.empty?
+
+          assembled = Module.new { mods.reverse_each { |m| include m } }
+          @module_cache[migration_class] = assembled
+          assembled
         end
 
         private
