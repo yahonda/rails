@@ -1008,7 +1008,8 @@ module ActiveRecord
     def exec_migration(conn, direction)
       @connection = conn
       if (mod = conn.migration_compatibility_module_for(self.class))
-        extend mod
+        target = ActiveRecord::Migration::Compatibility.target_class_for(self.class)
+        target.include(mod) unless target.include?(mod)
       end
       if respond_to?(:change)
         if direction == :down
@@ -1582,11 +1583,8 @@ module ActiveRecord
         mod = connection.migration_compatibility_module_for(migration_class)
         return unless mod
 
-        if migration.is_a?(Class)
-          migration.include(mod)
-        else
-          migration.extend(mod)
-        end
+        target = ActiveRecord::Migration::Compatibility.target_class_for(migration_class)
+        target.include(mod) unless target.include?(mod)
       end
 
       def target

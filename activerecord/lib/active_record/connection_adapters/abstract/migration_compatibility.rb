@@ -13,6 +13,19 @@ module ActiveRecord
         const_get(name)
       end
 
+      def self.framework_classes
+        @framework_classes ||= constants.grep(/\AV\d+_\d+\z/).map { |c| const_get(c) }.uniq.freeze
+      end
+
+      def self.target_class_for(klass)
+        framework = framework_classes
+        until framework.include?(klass.superclass)
+          break unless klass.superclass <= ActiveRecord::Migration
+          klass = klass.superclass
+        end
+        klass
+      end
+
       module Versioned
         def module_for(migration_class)
           @module_cache ||= {}

@@ -882,6 +882,75 @@ module ActiveRecord
         @schema_migration.delete_all_versions rescue nil
       end
 
+      # Regression test for the lookup order between the user's migration
+      # class and the adapter-specific compatibility module. Adapter
+      # compatibility used to be inlined into the
+      # +Compatibility::V<x>_<y>+ classes, so the user's overrides on the
+      # migration class ran first (M -> V<x>_<y> -> ...) and the adapter
+      # behavior was reachable via +super+. After moving adapter
+      # compatibility into per-adapter modules, the modules must still
+      # land *below* the user's migration class in the ancestors chain so
+      # that user overrides keep winning -- here we verify the leaf-class
+      # override case.
+      def test_user_class_override_runs_before_adapter_compatibility_module
+        marker = []
+        adapter_compat_module = Module.new do
+          define_method(:foo_marker) { marker << :adapter_compat }
+        end
+
+        user_migration = Class.new(ActiveRecord::Migration[7.0]) {
+          define_method(:foo_marker) { marker << :user_override }
+          def version; 401 end
+          def up
+            foo_marker
+          end
+        }.new
+
+        connection.stub(:migration_compatibility_module_for, adapter_compat_module) do
+          ActiveRecord::Migrator.new(:up, [user_migration], @schema_migration, @internal_metadata).migrate
+        end
+
+        assert_equal [:user_override], marker,
+          "Methods defined on the user's migration class should win over the adapter-specific compatibility module (matching the pre-refactor class-hierarchy order)."
+      ensure
+        @schema_migration.delete_all_versions rescue nil
+      end
+
+      # Same lookup-order contract as above, but with the user's override
+      # defined on an intermediate +ApplicationMigration+-style base class
+      # rather than on the migration's leaf class. This exercises the
+      # +Compatibility.target_class_for+ walk: starting from the leaf
+      # class, walk up the +superclass+ chain until the next superclass is
+      # a framework +V<x>_<y>+ class, and apply the adapter compatibility
+      # module on that topmost user-defined ancestor (the base class).
+      # The base class's override must still run before the adapter
+      # compatibility code.
+      def test_base_class_override_runs_before_adapter_compatibility_module
+        marker = []
+        adapter_compat_module = Module.new do
+          define_method(:foo_marker) { marker << :adapter_compat }
+        end
+
+        app_migration = Class.new(ActiveRecord::Migration[7.0]) do
+          define_method(:foo_marker) { marker << :base_class_override }
+        end
+        user_migration = Class.new(app_migration) do
+          def version; 402 end
+          def up
+            foo_marker
+          end
+        end.new
+
+        connection.stub(:migration_compatibility_module_for, adapter_compat_module) do
+          ActiveRecord::Migrator.new(:up, [user_migration], @schema_migration, @internal_metadata).migrate
+        end
+
+        assert_equal [:base_class_override], marker,
+          "Methods defined on an intermediate base class (ApplicationMigration-style) should win over the adapter-specific compatibility module: the module must be applied on the base class, not above it on the leaf migration's singleton."
+      ensure
+        @schema_migration.delete_all_versions rescue nil
+      end
+
       def test_migration_compatibility_module_for_defaults_to_nil_on_abstract_adapter
         adapter = ActiveRecord::ConnectionAdapters::AbstractAdapter.allocate
         assert_nil adapter.migration_compatibility_module_for(ActiveRecord::Migration[7.0])
