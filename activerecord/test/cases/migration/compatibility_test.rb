@@ -291,6 +291,20 @@ module ActiveRecord
         ensure
           ActiveRecord::Base.clear_cache!
         end
+
+        def test_legacy_change_column_with_comment_sets_comment_via_split_call
+          migration = Class.new(ActiveRecord::Migration[5.1]) {
+            def migrate(x)
+              change_column :testings, :foo, :string, comment: "legacy comment"
+            end
+          }.new
+
+          ActiveRecord::Migrator.new(:up, [migration], @schema_migration, @internal_metadata).migrate
+
+          assert connection.column_exists?(:testings, :foo, comment: "legacy comment")
+        ensure
+          ActiveRecord::Base.clear_cache!
+        end
       end
 
       def test_timestamps_sets_default_precision_on_create_table
