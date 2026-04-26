@@ -13,6 +13,36 @@ module ActiveRecord
         const_get(name)
       end
 
+      # Returns the framework-provided classes that mark the boundary between
+      # user-defined migration classes and the version compatibility layer:
+      # every +V<major>_<minor>+ versioned class. (+V8_2 = Current+ is an
+      # alias for +ActiveRecord::Migration+ itself, so +ActiveRecord::Migration+
+      # is implicitly included.)
+      #
+      # Used by +target_class_for+ to walk up a migration's ancestry and find
+      # the topmost user-defined class -- the one whose superclass is a
+      # framework class.
+      def self.framework_classes
+        @framework_classes ||= constants.grep(/\AV\d+_\d+\z/).map { |c| const_get(c) }.uniq.freeze
+      end
+
+      # Walks up +klass+'s superclass chain until the next superclass is a
+      # +V<major>_<minor>+ versioned class (or +ActiveRecord::Migration+
+      # itself, which is +V8_2+). Returns the topmost user-defined class --
+      # i.e. the ancestor on which adapter-specific compatibility behavior
+      # should be +include+'d so that the user's overrides on +klass+ or any
+      # intermediate +ApplicationMigration+-style base class run *before* the
+      # adapter-specific code, matching the pre-refactor lookup order where
+      # adapter conditionals were inlined into +V<major>_<minor>+ itself.
+      def self.target_class_for(klass)
+        framework = framework_classes
+        until framework.include?(klass.superclass)
+          break unless klass.superclass <= ActiveRecord::Migration
+          klass = klass.superclass
+        end
+        klass
+      end
+
       # Mixin for per-adapter +MigrationCompatibility+ modules.
       #
       # An adapter's +MigrationCompatibility+ module should +extend+ this and

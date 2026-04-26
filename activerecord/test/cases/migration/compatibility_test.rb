@@ -882,6 +882,45 @@ module ActiveRecord
         @schema_migration.delete_all_versions rescue nil
       end
 
+      # Regression test for the lookup-order shift introduced when adapter
+      # compatibility moved from inline conditionals inside the
+      # +Compatibility::V<x>_<y>+ classes to a per-adapter module mixed into
+      # the migration instance via +exec_migration#extend+. With +extend+ the
+      # module lands on the singleton class -- *above* the migration's own
+      # class in the ancestors chain -- so any method the user overrides on
+      # the migration class is now shadowed by the adapter-specific override.
+      # Before the refactor, lookup order was M (user) -> V<x>_<y> abstract
+      # (with embedded adapter conditionals) -> ..., so the user's method
+      # ran first.
+      #
+      # Currently this test fails: marker is +[:adapter_compat]+ instead of
+      # +[:user_override]+. It is the starting point for the follow-up that
+      # restores the old lookup order without reverting the per-adapter
+      # module refactor.
+      def test_user_class_override_runs_before_adapter_compatibility_module
+        marker = []
+        adapter_compat_module = Module.new do
+          define_method(:foo_marker) { marker << :adapter_compat }
+        end
+
+        user_migration = Class.new(ActiveRecord::Migration[7.0]) {
+          define_method(:foo_marker) { marker << :user_override }
+          def version; 401 end
+          def up
+            foo_marker
+          end
+        }.new
+
+        connection.stub(:migration_compatibility_module_for, adapter_compat_module) do
+          ActiveRecord::Migrator.new(:up, [user_migration], @schema_migration, @internal_metadata).migrate
+        end
+
+        assert_equal [:user_override], marker,
+          "Methods defined on the user's migration class should win over the adapter-specific compatibility module (matching the pre-refactor class-hierarchy order)."
+      ensure
+        @schema_migration.delete_all_versions rescue nil
+      end
+
       def test_migration_compatibility_module_for_defaults_to_nil_on_abstract_adapter
         adapter = ActiveRecord::ConnectionAdapters::AbstractAdapter.allocate
         assert_nil adapter.migration_compatibility_module_for(ActiveRecord::Migration[7.0])
