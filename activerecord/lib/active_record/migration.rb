@@ -1577,17 +1577,26 @@ module ActiveRecord
       # Adapter-specific compatibility (e.g. MySQL <tt>ENGINE=InnoDB</tt>,
       # PostgreSQL <tt>uuid_generate_v4()</tt> defaults, deferrable foreign
       # keys, V5_1 <tt>change_column</tt> splitting, ...) lives in per-adapter
-      # <tt>MigrationCompatibility</tt> modules and is normally mixed into the
-      # migration instance by <tt>Migration#exec_migration</tt>. Migrations
-      # that override <tt>#migrate(direction)</tt> directly bypass that path,
-      # so the mixin never happens and the compatibility behavior silently
-      # disappears. Apply the mixin here as well so the behavior is preserved
-      # no matter whether the migration body lives in <tt>#up</tt> /
-      # <tt>#down</tt> / <tt>#change</tt> (the documented interfaces) or
-      # <tt>#migrate</tt>. Extending the same module a second time is a no-op,
-      # so the double application that happens on the documented paths is
-      # harmless.
+      # <tt>MigrationCompatibility</tt> modules. The documented entry points
+      # (<tt>#up</tt> / <tt>#down</tt> / <tt>#change</tt>) flow through
+      # <tt>Migration#exec_migration</tt>, which mixes the module into the
+      # migration instance before dispatch -- so the early return below skips
+      # this fallback for them.
+      #
+      # Migrations that override <tt>#migrate(direction)</tt> directly bypass
+      # <tt>#exec_migration</tt>, so apply the mixin here too. Three shapes
+      # for +migration+ are possible:
+      #
+      # * +MigrationProxy+ wrapping a file-backed migration -- unwrap to the
+      #   underlying instance so the +extend+ lands on the object whose
+      #   +#migrate+ will run.
+      # * Migration instance -- +extend+ the singleton.
+      # * Migration class (e.g. +Class.new(ActiveRecord::Migration[7.1])+
+      #   passed straight to +Migrator+, dispatched via +Migration.migrate+
+      #   at line ~747 which builds a fresh instance per call) -- +include+
+      #   the module so each freshly built instance gets it.
       def apply_adapter_compatibility_module(migration)
+        migration = migration.send(:migration) if migration.is_a?(MigrationProxy)
         migration_class = migration.is_a?(Class) ? migration : migration.class
         return if migration_class.instance_method(:migrate).owner == ActiveRecord::Migration
 
