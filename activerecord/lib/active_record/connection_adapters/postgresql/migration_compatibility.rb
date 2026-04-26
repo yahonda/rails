@@ -43,9 +43,15 @@ module ActiveRecord
           end
 
           private
+            # Prepend the adapter-specific +TableDefinition+ *after* +super+ so
+            # that it lands at the top of the prepend chain on +t+'s singleton
+            # ancestors -- otherwise the generic +Compatibility::V<x>_<y>::TableDefinition+
+            # modules, prepended later by their own +compatible_table_definition+
+            # invocations, would shadow adapter-specific overrides.
             def compatible_table_definition(t)
-              t.singleton_class.prepend(TableDefinition)
               super
+              t.singleton_class.prepend(TableDefinition)
+              t
             end
         end
 
