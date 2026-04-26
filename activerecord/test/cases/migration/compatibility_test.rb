@@ -956,6 +956,61 @@ module ActiveRecord
         assert_nil adapter.migration_compatibility_module_for(ActiveRecord::Migration[7.0])
       end
 
+      def test_compatibility_apply_is_idempotent_for_the_same_module
+        target = Class.new(ActiveRecord::Migration[7.0])
+        mod = Module.new
+
+        ActiveRecord::Migration::Compatibility.apply(target, mod)
+
+        assert_includes target.ancestors, mod, "first apply should include the module"
+        assert_nothing_raised do
+          ActiveRecord::Migration::Compatibility.apply(target, mod)
+        end
+        assert_equal 1, target.ancestors.count(mod), "re-applying the same module should not double-include"
+      end
+
+      def test_compatibility_apply_raises_when_a_different_adapter_module_is_applied_to_the_same_target
+        target = Class.new(ActiveRecord::Migration[7.0])
+        primary_mod = Module.new
+        secondary_mod = Module.new
+
+        ActiveRecord::Migration::Compatibility.apply(target, primary_mod)
+
+        error = assert_raises(ActiveRecord::Migration::Compatibility::ConflictError) do
+          ActiveRecord::Migration::Compatibility.apply(target, secondary_mod)
+        end
+        assert_match(/distinct migration base class per adapter/, error.message)
+        assert_not_includes target.ancestors, secondary_mod,
+          "the conflicting module should not be included on the target"
+      end
+
+      def test_migrator_raises_compatibility_conflict_when_shared_base_class_meets_a_second_adapter
+        shared_base = Class.new(ActiveRecord::Migration[7.0])
+        primary_mod = Module.new
+        secondary_mod = Module.new
+
+        primary_migration = Class.new(shared_base) {
+          def version; 601 end
+          def up; end
+        }.new
+
+        secondary_migration = Class.new(shared_base) {
+          def version; 602 end
+          def up; end
+        }.new
+
+        connection.stub(:migration_compatibility_module_for, primary_mod) do
+          primary_migration.exec_migration(connection, :up)
+        end
+
+        error = assert_raises(ActiveRecord::Migration::Compatibility::ConflictError) do
+          connection.stub(:migration_compatibility_module_for, secondary_mod) do
+            secondary_migration.exec_migration(connection, :up)
+          end
+        end
+        assert_match(/distinct migration base class per adapter/, error.message)
+      end
+
       if defined?(ActiveRecord::ConnectionAdapters::PostgreSQL::MigrationCompatibility)
         def test_postgresql_migration_compatibility_module_for_orders_by_class_hierarchy
           pg = ActiveRecord::ConnectionAdapters::PostgreSQL::MigrationCompatibility

@@ -26,6 +26,30 @@ module ActiveRecord
         klass
       end
 
+      class ConflictError < ActiveRecord::MigrationError
+      end
+
+      def self.apply(target, mod)
+        @applied ||= ObjectSpace::WeakMap.new
+        current = @applied[target]
+
+        if current && !current.equal?(mod)
+          raise ConflictError, <<~MSG.squish
+            Migration class #{target.name || target.inspect} has already been
+            associated with adapter compatibility from another database
+            adapter and cannot accept #{mod.inspect} as well. Use a distinct
+            migration base class per adapter type; see
+            https://guides.rubyonrails.org/active_record_multiple_databases.html#sharing-migration-helpers-across-different-database-adapters
+            for the recommended pattern.
+          MSG
+        end
+
+        unless target.include?(mod)
+          target.include(mod)
+          @applied[target] = mod
+        end
+      end
+
       module Versioned
         def module_for(migration_class)
           @module_cache ||= {}
