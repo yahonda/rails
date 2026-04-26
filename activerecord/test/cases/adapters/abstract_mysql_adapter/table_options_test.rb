@@ -128,4 +128,30 @@ class DefaultEngineOptionTest < ActiveRecord::AbstractMysqlTestCase
     expected = /create_table "mysql_table_options", charset: "utf8mb4"(?:, collation: "\w+")?, force: :cascade/
     assert_match expected, output
   end
+
+  test "Migration[5.0] inherits ENGINE=InnoDB from the 5.1 compat module" do
+    migration = Class.new(ActiveRecord::Migration[5.0]) do
+      def migrate(x)
+        create_table "mysql_table_options", force: true
+      end
+    end.new
+
+    pool = ActiveRecord::Base.connection_pool
+    ActiveRecord::Migrator.new(:up, [migration], pool.schema_migration, pool.internal_metadata).migrate
+
+    assert_match %r{ENGINE=InnoDB}, @log.string
+  end
+
+  test "Migration[4.2] inherits ENGINE=InnoDB from the 5.1 compat module" do
+    migration = Class.new(ActiveRecord::Migration[4.2]) do
+      def migrate(x)
+        create_table "mysql_table_options", force: true
+      end
+    end.new
+
+    pool = ActiveRecord::Base.connection_pool
+    ActiveRecord::Migrator.new(:up, [migration], pool.schema_migration, pool.internal_metadata).migrate
+
+    assert_match %r{ENGINE=InnoDB}, @log.string
+  end
 end
