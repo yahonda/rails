@@ -1575,6 +1575,7 @@ module ActiveRecord
       end
 
       def apply_adapter_compatibility_module(migration)
+        migration = migration.send(:migration) if migration.is_a?(MigrationProxy)
         migration_class = migration.is_a?(Class) ? migration : migration.class
         return if migration_class.instance_method(:migrate).owner == ActiveRecord::Migration
 

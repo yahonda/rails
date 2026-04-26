@@ -857,6 +857,31 @@ module ActiveRecord
         @schema_migration.delete_all_versions rescue nil
       end
 
+      def test_migrate_override_through_migration_proxy_receives_adapter_compatibility
+        compat_hook_fired = false
+        adapter_compat_module = Module.new do
+          define_method(:compat_hook_sentinel) { compat_hook_fired = true }
+        end
+
+        migration = Class.new(ActiveRecord::Migration[7.0]) {
+          def version; 301 end
+          def migrate(direction)
+            compat_hook_sentinel
+          end
+        }.new
+
+        proxy = ActiveRecord::MigrationProxy.new("ProxyCompatTest", 301, "<test>", nil)
+        proxy.singleton_class.send(:define_method, :migration) { migration }
+
+        connection.stub(:migration_compatibility_module_for, adapter_compat_module) do
+          ActiveRecord::Migrator.new(:up, [proxy], @schema_migration, @internal_metadata).migrate
+        end
+
+        assert compat_hook_fired, "Migrator should unwrap MigrationProxy and apply the adapter-specific compatibility module to the underlying migration instance"
+      ensure
+        @schema_migration.delete_all_versions rescue nil
+      end
+
       def test_migration_compatibility_module_for_defaults_to_nil_on_abstract_adapter
         adapter = ActiveRecord::ConnectionAdapters::AbstractAdapter.allocate
         assert_nil adapter.migration_compatibility_module_for(ActiveRecord::Migration[7.0])
