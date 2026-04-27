@@ -4,8 +4,8 @@
     literals. This only impact the application code, not the dependencies.
 
     It is also possible to enable it for dependencies for reduce allocations, but
-    some older gems may not yet be compatible. If you do attempt this an run into
-    incompatibilites please do report it on the gem bug tracker.
+    some older gems may not yet be compatible. If you do attempt this and run into
+    incompatibilites please do report it on the corresponding gem bug tracker.
 
     Additionally, `.rubocop.yml` is configured to assume frozen string literals
     are enabled, if you decide not to enable frozen string literals for your application,
