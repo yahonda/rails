@@ -1230,6 +1230,14 @@ module ActiveRecord
       #
       #   ALTER TABLE "articles" ADD CONSTRAINT fk_rails_e74ce85cbc FOREIGN KEY ("author_id") REFERENCES "authors" ("id") ON DELETE CASCADE
       #
+      # ====== Creating a not enforced foreign key (PostgreSQL 18.4+)
+      #
+      #   add_foreign_key :articles, :authors, enforced: false
+      #
+      # generates:
+      #
+      #   ALTER TABLE "articles" ADD CONSTRAINT fk_rails_e74ce85cbc FOREIGN KEY ("author_id") REFERENCES "authors" ("id") NOT ENFORCED
+      #
       # The +options+ hash can include the following keys:
       # [<tt>:column</tt>]
       #   The foreign key column name on +from_table+. Defaults to <tt>to_table.singularize + "_id"</tt>.
@@ -1251,6 +1259,11 @@ module ActiveRecord
       # [<tt>:deferrable</tt>]
       #   (PostgreSQL only) Specify whether or not the foreign key should be deferrable. Valid values are booleans or
       #   +:deferred+ or +:immediate+ to specify the default behavior. Defaults to +false+.
+      # [<tt>:enforced</tt>]
+      #   (PostgreSQL 18.4+) Specify whether or not
+      #   the foreign key should be enforced. Defaults to +true+. When set to +false+, the
+      #   constraint is created as +NOT ENFORCED+, meaning referential integrity is not
+      #   checked during DML.
       def add_foreign_key(from_table, to_table, **options)
         return unless use_foreign_keys?
 

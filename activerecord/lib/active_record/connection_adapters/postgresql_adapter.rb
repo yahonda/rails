@@ -255,6 +255,13 @@ module ActiveRecord
         true
       end
 
+      def supports_enforced_foreign_keys?
+        # Requires PostgreSQL 18.4+. `NOT ENFORCED` foreign key support exists from 18.0, but a bug
+        # where DEFERRABLE was silently dropped when set to `NOT ENFORCED` was fixed in 18.4
+        # (commit 5db5e339692ed98adb5ae6ff625a92b49f770a6f in the PostgreSQL repository).
+        database_version >= 18_00_04
+      end
+
       def supports_views?
         true
       end

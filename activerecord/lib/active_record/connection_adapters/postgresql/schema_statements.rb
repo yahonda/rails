@@ -746,13 +746,18 @@ module ActiveRecord
         def add_foreign_key(from_table, to_table, **options)
           assert_valid_deferrable(options[:deferrable])
 
+          if options.key?(:enforced) && !supports_enforced_foreign_keys?
+            raise ArgumentError, "NOT ENFORCED foreign key constraints require PostgreSQL 18.4+"
+          end
+
           super
         end
 
         def foreign_keys(table_name)
           scope = quoted_scope(table_name)
+          conenforced_column = supports_enforced_foreign_keys? ? ", c.conenforced AS enforced" : ""
           fk_info = query_all(<<~SQL)
-            SELECT t2.oid::regclass::text AS to_table, c.conname AS name, c.confupdtype AS on_update, c.confdeltype AS on_delete, c.convalidated AS valid, c.condeferrable AS deferrable, c.condeferred AS deferred, c.conrelid, c.confrelid,
+            SELECT t2.oid::regclass::text AS to_table, c.conname AS name, c.confupdtype AS on_update, c.confdeltype AS on_delete, c.convalidated AS valid, c.condeferrable AS deferrable, c.condeferred AS deferred, c.conrelid, c.confrelid#{conenforced_column},
               (
                 SELECT array_agg(a.attname ORDER BY idx)
                 FROM (
@@ -798,6 +803,7 @@ module ActiveRecord
             options[:deferrable] = extract_constraint_deferrable(row["deferrable"], row["deferred"])
 
             options[:validate] = row["valid"]
+            options[:enforced] = row["enforced"] if supports_enforced_foreign_keys?
 
             ForeignKeyDefinition.new(table_name, to_table, options)
           end

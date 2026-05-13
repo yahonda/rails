@@ -1,3 +1,31 @@
+*   Add `enforced:` option to `add_foreign_key` for PostgreSQL 18.4+.
+
+    When `enforced: false` is passed, the constraint is created as `NOT ENFORCED`,
+    meaning PostgreSQL skips referential integrity checks during DML.
+    Schema dumper outputs `enforced: false` for NOT ENFORCED foreign keys and omits
+    `validate: false` since `VALIDATE CONSTRAINT` cannot be applied to them.
+
+    ```ruby
+    add_foreign_key :articles, :authors, enforced: false
+    # => ALTER TABLE "articles" ADD CONSTRAINT ... FOREIGN KEY ("author_id") REFERENCES "authors" ("id") NOT ENFORCED
+    ```
+
+    On PostgreSQL 18.4+, `disable_referential_integrity` uses `NOT ENFORCED`/`ENFORCED`
+    instead of `DISABLE TRIGGER ALL`/`ENABLE TRIGGER ALL`, requiring only table ownership
+    rather than superuser privileges. Only currently `ENFORCED` foreign keys are toggled;
+    intentionally `NOT ENFORCED` foreign keys are left unchanged.
+
+    Unlike `ENABLE TRIGGER ALL`, restoring `ENFORCED` checks existing rows against the
+    constraint, so FK violations raise `ActiveRecord::InvalidForeignKey` rather than
+    `RuntimeError`. Fixtures sharing FK relationships must be passed together to
+    `FixtureSet.create_fixtures` to ensure all referenced rows are present when
+    enforcement is restored.
+
+    `check_all_foreign_keys_valid!` skips `NOT ENFORCED` constraints on PostgreSQL 18.4+,
+    as `VALIDATE CONSTRAINT` cannot be applied to them.
+
+    *Yasuo Honda*
+
 *   Move the defaulting of `prevent_writes` to `true` when using the `reading` role into the parameters
     of the role switching methods, and raise an `ArgumentError` if `prevent_writes: false` is provided
     with the `reading` role.

@@ -659,6 +659,69 @@ if ActiveRecord::Base.lease_connection.supports_foreign_keys?
           end
         end
 
+        if ActiveRecord::Base.lease_connection.supports_enforced_foreign_keys?
+          def test_not_enforced_foreign_key
+            assert_queries_match(/\("id"\)\s+NOT ENFORCED\W*\z/i) do
+              @connection.add_foreign_key :astronauts, :rockets, column: "rocket_id", enforced: false
+            end
+
+            foreign_keys = @connection.foreign_keys("astronauts")
+            assert_equal 1, foreign_keys.size
+
+            fk = foreign_keys.first
+            assert_not_predicate fk, :enforced?
+          end
+
+          def test_enforced_foreign_key_default
+            @connection.add_foreign_key :astronauts, :rockets, column: "rocket_id"
+
+            foreign_keys = @connection.foreign_keys("astronauts")
+            assert_equal 1, foreign_keys.size
+
+            fk = foreign_keys.first
+            assert_predicate fk, :enforced?
+          end
+
+          def test_schema_dumping_with_not_enforced
+            @connection.add_foreign_key :astronauts, :rockets, column: "rocket_id", enforced: false
+
+            output = dump_table_schema "astronauts"
+
+            assert_match %r{\s+add_foreign_key "astronauts", "rockets", enforced: false$}, output
+          end
+
+          def test_schema_dumping_enforced_omits_option
+            @connection.add_foreign_key :astronauts, :rockets, column: "rocket_id"
+            assert_no_match %r{enforced:}, dump_table_schema("astronauts")
+
+            @connection.remove_foreign_key :astronauts, :rockets
+            @connection.add_foreign_key :astronauts, :rockets, column: "rocket_id", enforced: true
+            assert_no_match %r{enforced:}, dump_table_schema("astronauts")
+          end
+
+          def test_schema_dumping_not_enforced_with_validate_true_omits_validate_false
+            # `NOT ENFORCED` constraints cannot be validated (`VALIDATE CONSTRAINT` raises an error),
+            # so PostgreSQL always sets convalidated=false. validate: false is therefore
+            # redundant and omitted from the schema dump.
+            @connection.add_foreign_key :astronauts, :rockets, column: "rocket_id",
+              enforced: false, validate: true
+
+            output = dump_table_schema "astronauts"
+            assert_match %r{\s+add_foreign_key "astronauts", "rockets", enforced: false$}, output
+            assert_no_match %r{validate: false}, output
+          end
+        end
+
+        def test_enforced_option_raises_on_unsupported_database
+          skip unless current_adapter?(:PostgreSQLAdapter)
+          @connection.stub(:supports_enforced_foreign_keys?, false) do
+            error = assert_raises(ArgumentError) do
+              @connection.add_foreign_key :astronauts, :rockets, column: "rocket_id", enforced: false
+            end
+            assert_match(/NOT ENFORCED/, error.message)
+          end
+        end
+
         def test_does_not_create_foreign_keys_when_bypassed_by_config
           require "active_record/connection_adapters/sqlite3_adapter"
           connection = ActiveRecord::ConnectionAdapters::SQLite3Adapter.new(

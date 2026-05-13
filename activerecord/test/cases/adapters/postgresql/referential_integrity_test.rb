@@ -33,9 +33,17 @@ class PostgreSQLReferentialIntegrityTest < ActiveRecord::PostgreSQLTestCase
 
   def setup
     @connection = ActiveRecord::Base.lease_connection
+    if @connection.supports_enforced_foreign_keys?
+      @connection.create_table :ri_test_parents, force: true
+      @connection.create_table :ri_test_children, force: true do |t|
+        t.bigint :parent_id, null: false
+      end
+    end
   end
 
   def teardown
+    @connection.drop_table :ri_test_children, if_exists: true
+    @connection.drop_table :ri_test_parents, if_exists: true
     reset_connection
     if ActiveRecord::Base.lease_connection.is_a?(MissingSuperuserPrivileges)
       raise "MissingSuperuserPrivileges patch was not removed"
@@ -43,6 +51,7 @@ class PostgreSQLReferentialIntegrityTest < ActiveRecord::PostgreSQLTestCase
   end
 
   def test_should_reraise_invalid_foreign_key_exception_and_show_warning
+    skip if @connection.supports_enforced_foreign_keys?
     @connection.extend MissingSuperuserPrivileges
 
     warning = capture(:stderr) do
@@ -96,10 +105,152 @@ class PostgreSQLReferentialIntegrityTest < ActiveRecord::PostgreSQLTestCase
   end
 
   def test_only_catch_active_record_errors_others_bubble_up
+    skip if @connection.supports_enforced_foreign_keys?
     @connection.extend ProgrammerMistake
 
     assert_raises ArgumentError do
       @connection.disable_referential_integrity { }
+    end
+  end
+
+  def test_not_enforced_foreign_keys_remain_not_enforced_after_block
+    skip unless @connection.supports_enforced_foreign_keys?
+
+    @connection.add_foreign_key :ri_test_children, :ri_test_parents, column: :parent_id, name: :ri_test_fk, enforced: false
+
+    @connection.disable_referential_integrity { }
+
+    result = @connection.select_value(<<~SQL)
+      SELECT c.conenforced
+      FROM pg_constraint c
+      WHERE c.conname = 'ri_test_fk'
+    SQL
+
+    assert_not result, "NOT ENFORCED foreign key should remain NOT ENFORCED after disable_referential_integrity block"
+  end
+
+  def test_enforced_foreign_keys_are_restored_to_enforced_after_block
+    skip unless @connection.supports_enforced_foreign_keys?
+
+    @connection.add_foreign_key :ri_test_children, :ri_test_parents, column: :parent_id, name: :ri_test_fk
+
+    fk_enforced_during_block = nil
+    @connection.disable_referential_integrity do
+      fk_enforced_during_block = @connection.select_value(<<~SQL)
+        SELECT c.conenforced
+        FROM pg_constraint c
+        WHERE c.conname = 'ri_test_fk'
+      SQL
+    end
+
+    assert_not fk_enforced_during_block,
+      "FK should be NOT ENFORCED inside the disable_referential_integrity block"
+
+    fk_enforced_after = @connection.select_value(<<~SQL)
+      SELECT c.conenforced
+      FROM pg_constraint c
+      WHERE c.conname = 'ri_test_fk'
+    SQL
+
+    assert fk_enforced_after,
+      "FK should be restored to ENFORCED after disable_referential_integrity block"
+  end
+
+  def test_deferrable_foreign_keys_are_restored_after_block
+    skip unless @connection.supports_enforced_foreign_keys?
+
+    @connection.add_foreign_key :ri_test_children, :ri_test_parents,
+      column: :parent_id, name: :ri_test_deferred_fk, deferrable: :deferred
+
+    @connection.disable_referential_integrity { }
+
+    condeferrable = @connection.select_value(<<~SQL)
+      SELECT c.condeferrable FROM pg_constraint c WHERE c.conname = 'ri_test_deferred_fk'
+    SQL
+    condeferred = @connection.select_value(<<~SQL)
+      SELECT c.condeferred FROM pg_constraint c WHERE c.conname = 'ri_test_deferred_fk'
+    SQL
+
+    assert condeferrable, "FK should remain DEFERRABLE after disable_referential_integrity block"
+    assert condeferred, "FK should remain INITIALLY DEFERRED after disable_referential_integrity block"
+  end
+
+  def test_validated_foreign_keys_are_restored_after_block
+    skip unless @connection.supports_enforced_foreign_keys?
+
+    @connection.add_foreign_key :ri_test_children, :ri_test_parents,
+      column: :parent_id, name: :ri_test_validated_fk
+
+    convalidated_before = @connection.select_value(<<~SQL)
+      SELECT c.convalidated FROM pg_constraint c WHERE c.conname = 'ri_test_validated_fk'
+    SQL
+    assert convalidated_before, "FK should be VALIDATED before disable_referential_integrity block"
+
+    @connection.disable_referential_integrity { }
+
+    convalidated_after = @connection.select_value(<<~SQL)
+      SELECT c.convalidated FROM pg_constraint c WHERE c.conname = 'ri_test_validated_fk'
+    SQL
+    assert convalidated_after, "FK should be restored to VALIDATED after disable_referential_integrity block"
+  end
+
+  def test_non_fk_error_in_block_propagates_original_exception
+    skip unless @connection.supports_enforced_foreign_keys?
+
+    @connection.add_foreign_key :ri_test_children, :ri_test_parents, column: :parent_id, name: :ri_test_fk
+
+    original_error = nil
+    @connection.transaction do
+      original_error = assert_raises(ActiveRecord::StatementInvalid) do
+        @connection.disable_referential_integrity do
+          @connection.execute("SELECT 1/0")  # aborts the transaction
+        end
+      end
+      raise ActiveRecord::Rollback
+    end
+
+    # Without rescuing StatementInvalid, the ensure block would raise
+    # "current transaction is aborted" which would replace the original exception.
+    assert_match(/division by zero/, original_error.message)
+
+    conenforced = @connection.select_value(<<~SQL)
+      SELECT conenforced FROM pg_constraint WHERE conname = 'ri_test_fk'
+    SQL
+    assert conenforced,
+      "FK should be restored to ENFORCED after the outer transaction rolls back"
+  end
+
+  def test_disable_referential_integrity_raises_invalid_foreign_key_on_fk_violation
+    skip unless @connection.supports_enforced_foreign_keys?
+
+    @connection.add_foreign_key :ri_test_children, :ri_test_parents, column: :parent_id, name: :ri_test_fk
+
+    assert_raises(ActiveRecord::InvalidForeignKey) do
+      @connection.transaction do
+        @connection.disable_referential_integrity do
+          # Inserting a row that violates the FK is allowed while `NOT ENFORCED`.
+          @connection.execute("INSERT INTO ri_test_children(parent_id) VALUES (999)")
+        end
+        # Restoring ENFORCED checks existing rows against the constraint and raises InvalidForeignKey.
+      end
+    end
+  end
+
+  def test_check_all_foreign_keys_valid_skips_not_enforced_constraints
+    skip unless @connection.supports_enforced_foreign_keys?
+
+    @connection.add_foreign_key :ri_test_children, :ri_test_parents,
+      column: :parent_id, name: :ri_test_not_enforced_fk, enforced: false
+
+    parent_model = Class.new(ActiveRecord::Base) { self.table_name = "ri_test_parents" }
+    child_model  = Class.new(ActiveRecord::Base) { self.table_name = "ri_test_children" }
+
+    parent_model.create!
+    # `NOT ENFORCED` allows inserting a row that violates the FK constraint
+    child_model.create!(parent_id: 999)
+
+    assert_nothing_raised do
+      @connection.check_all_foreign_keys_valid!
     end
   end
 
