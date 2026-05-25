@@ -116,6 +116,21 @@ module TestHelpers
       ENV["RAILS_ENV"] = "development"
 
       FileUtils.rm_rf(app_path)
+
+      parent = File.dirname(app_path)
+      unless Dir.exist?(parent)
+        tmp_root = File.dirname(parent)
+        details = {
+          pid: Process.pid,
+          parent: parent,
+          parent_realpath: (File.realpath(parent) rescue $!.message),
+          tmp_root_exists: Dir.exist?(tmp_root),
+          tmp_root_entries: (Dir.entries(tmp_root) rescue $!.message),
+          mounts: (File.read("/proc/mounts").lines.grep(/tmp/).map(&:strip) rescue $!.message),
+        }
+        raise "[build_app] parent dir vanished after Dir.mktmpdir: #{details.inspect}"
+      end
+
       FileUtils.cp_r(app_template_path, app_path)
 
       # Delete the initializers unless requested
