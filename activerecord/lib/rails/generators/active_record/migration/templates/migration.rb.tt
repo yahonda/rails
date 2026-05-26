@@ -1,4 +1,8 @@
-class <%= migration_class_name %> < ActiveRecord::Migration[<%= ActiveRecord::Migration.current_version %>]
+<%- if migration_inherits_from_abstract_class? -%>
+require_relative "<%= options[:database].underscore %>_migration"
+
+<%- end -%>
+class <%= migration_class_name %> < <%= migration_parent_class_name %>
 <%- if migration_action == 'add' -%>
   def change
 <% attributes.each do |attribute| -%>

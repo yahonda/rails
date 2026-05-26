@@ -27,6 +27,30 @@ module ActiveRecord
           ", type: :#{key_type}" if key_type
         end
 
+        def migration_parent_class_name
+          if options[:database]
+            abstract_migration_class_name
+          else
+            "ActiveRecord::Migration[#{ActiveRecord::Migration.current_version}]"
+          end
+        end
+
+        def migration_inherits_from_abstract_class?
+          options[:database].present?
+        end
+
+        def abstract_migration_class_name
+          "#{options[:database].camelize}Migration"
+        end
+
+        def generate_migration_abstract_class
+          return unless migration_inherits_from_abstract_class?
+          path = File.join(db_migrate_path, "#{options[:database].underscore}_migration.rb")
+          return if File.exist?(File.expand_path(path, destination_root))
+
+          template "abstract_migration.rb", path
+        end
+
         def db_migrate_path
           if defined?(Rails.application) && Rails.application
             configured_migrate_path || default_migrate_path

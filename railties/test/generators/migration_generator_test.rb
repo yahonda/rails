@@ -327,6 +327,60 @@ class MigrationGeneratorTest < Rails::Generators::TestCase
     end
   end
 
+  def test_database_option_generates_per_database_migration_abstract_class
+    with_database_configuration do
+      run_generator ["create_books", "--database=secondary"]
+      assert_file "db/secondary_migrate/secondary_migration.rb",
+        /class SecondaryMigration < ActiveRecord::Migration\[[0-9.]+\]\nend/
+    end
+  end
+
+  def test_database_option_makes_migration_inherit_from_per_database_abstract_class
+    with_database_configuration do
+      run_generator ["create_books", "--database=secondary"]
+      assert_migration "db/secondary_migrate/create_books.rb" do |content|
+        assert_match(/^require_relative "secondary_migration"$/, content)
+        assert_match(/^class CreateBooks < SecondaryMigration$/, content)
+      end
+    end
+  end
+
+  def test_parent_option_opts_out_of_per_database_abstract_class
+    with_database_configuration do
+      run_generator ["create_books", "--database=secondary", "--parent=ApplicationMigration"]
+      assert_no_file "db/secondary_migrate/secondary_migration.rb"
+      assert_migration "db/secondary_migrate/create_books.rb" do |content|
+        assert_no_match(/require_relative/, content)
+        assert_match(/^class CreateBooks < ApplicationMigration$/, content)
+      end
+    end
+  end
+
+  def test_no_database_option_does_not_generate_abstract_class
+    run_generator ["create_books"]
+    assert_no_file "db/migrate/migrate_migration.rb"
+    assert_migration "db/migrate/create_books.rb" do |content|
+      assert_no_match(/require_relative/, content)
+      assert_match(/^class CreateBooks < ActiveRecord::Migration\[[0-9.]+\]$/, content)
+    end
+  end
+
+  def test_database_option_does_not_overwrite_existing_abstract_class
+    with_database_configuration do
+      mkdir_p "#{destination_root}/db/secondary_migrate"
+      File.write("#{destination_root}/db/secondary_migrate/secondary_migration.rb", <<~RUBY)
+        class SecondaryMigration < ActiveRecord::Migration[7.0]
+          def custom_helper; end
+        end
+      RUBY
+
+      run_generator ["create_books", "--database=secondary"]
+
+      assert_file "db/secondary_migrate/secondary_migration.rb", /def custom_helper; end/
+      assert_file "db/secondary_migrate/secondary_migration.rb", /ActiveRecord::Migration\[7\.0\]/
+    end
+  end
+
   def test_should_create_empty_migrations_if_name_not_start_with_add_or_remove_or_create
     migration = "delete_books"
     run_generator [migration, "title:string", "content:text"]

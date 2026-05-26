@@ -69,7 +69,9 @@ class ModelGeneratorTest < Rails::Generators::TestCase
       run_generator ["account", "--database", "secondary"]
       assert_file "app/models/secondary_record.rb", /class SecondaryRecord < ApplicationRecord/
       assert_file "app/models/account.rb", /class Account < SecondaryRecord/
-      assert_migration "db/secondary_migrate/create_accounts.rb", /class CreateAccounts < ActiveRecord::Migration\[[0-9.]+\]/
+      assert_file "db/secondary_migrate/secondary_migration.rb", /class SecondaryMigration < ActiveRecord::Migration\[[0-9.]+\]/
+      assert_migration "db/secondary_migrate/create_accounts.rb", /require_relative "secondary_migration"/
+      assert_migration "db/secondary_migrate/create_accounts.rb", /class CreateAccounts < SecondaryMigration/
     end
   end
 
@@ -77,7 +79,8 @@ class ModelGeneratorTest < Rails::Generators::TestCase
     with_database_configuration do
       run_generator ["account", "--parent", "Admin::Account", "--database", "secondary"]
       assert_file "app/models/account.rb", /class Account < Admin::Account/
-      assert_migration "db/secondary_migrate/create_accounts.rb", /class CreateAccounts < ActiveRecord::Migration\[[0-9.]+\]/
+      assert_file "db/secondary_migrate/secondary_migration.rb", /class SecondaryMigration < ActiveRecord::Migration\[[0-9.]+\]/
+      assert_migration "db/secondary_migrate/create_accounts.rb", /class CreateAccounts < SecondaryMigration/
     end
   end
 
@@ -108,7 +111,9 @@ class ModelGeneratorTest < Rails::Generators::TestCase
       run_generator ["account", "--database", "admin_accounts"]
       assert_file "app/models/admin_accounts_record.rb", /class AdminAccountsRecord < ApplicationRecord/
       assert_file "app/models/account.rb", /class Account < AdminAccountsRecord/
-      assert_migration "db/admin_accounts_migrate/create_accounts.rb", /class CreateAccounts < ActiveRecord::Migration\[[0-9.]+\]/
+      assert_file "db/admin_accounts_migrate/admin_accounts_migration.rb", /class AdminAccountsMigration < ActiveRecord::Migration\[[0-9.]+\]/
+      assert_migration "db/admin_accounts_migrate/create_accounts.rb", /require_relative "admin_accounts_migration"/
+      assert_migration "db/admin_accounts_migrate/create_accounts.rb", /class CreateAccounts < AdminAccountsMigration/
     end
   end
 

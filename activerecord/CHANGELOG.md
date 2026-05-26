@@ -1,3 +1,27 @@
+*   Generate a per-database migration base class when `bin/rails generate
+    migration` (or `model` / `scaffold`) is invoked with `--database`.
+
+    The migration generator now mirrors the model generator's existing
+    per-database abstract class pattern. With `--database animals`, the
+    generator writes `db/animals_migrate/animals_migration.rb` containing
+    `class AnimalsMigration < ActiveRecord::Migration[X.Y]; end`, and the
+    generated migration inherits from `AnimalsMigration` and adds
+    `require_relative "animals_migration"` at the top. The base class is
+    not regenerated if the file already exists.
+
+    Use `--parent SomeBase` to opt out and inherit from a custom class
+    instead. Without `--database`, the previous behavior of inheriting
+    directly from `ActiveRecord::Migration[X.Y]` is preserved.
+
+    Each per-database base class is its own ancestor for adapter-specific
+    migration compatibility behavior, so multi-database applications that
+    mix adapter types (for example, a PostgreSQL primary and a MySQL
+    animals database) avoid sharing a single migration base class across
+    adapter types -- the configuration that raises
+    `ActiveRecord::Migration::Compatibility::ConflictError`.
+
+    *Yasuo Honda*
+
 *   Include the list of valid values in the `ArgumentError` raised when assigning
     an invalid value to an enum attribute.
 

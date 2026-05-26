@@ -10,10 +10,12 @@ module ActiveRecord
       class_option :timestamps, type: :boolean
       class_option :primary_key_type, type: :string, desc: "The type for primary key"
       class_option :database, type: :string, aliases: %i(--db), desc: "The database for your migration. By default, the current environment's primary database is used."
+      class_option :parent, type: :string, desc: "The parent class for the generated migration"
 
       def create_migration_file
         set_local_assigns!
         validate_file_name!
+        generate_migration_abstract_class
         migration_template @migration_template, File.join(db_migrate_path, "#{file_name}.rb")
       end
 
@@ -70,6 +72,16 @@ module ActiveRecord
 
         def normalize_table_name(_table_name)
           pluralize_table_names? ? _table_name.pluralize : _table_name.singularize
+        end
+
+        def migration_parent_class_name
+          return options[:parent] if options[:parent].present?
+          super
+        end
+
+        def migration_inherits_from_abstract_class?
+          return false if options[:parent].present?
+          super
         end
     end
   end
