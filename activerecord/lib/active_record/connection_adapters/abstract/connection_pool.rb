@@ -811,11 +811,14 @@ module ActiveRecord
         reaper_lock do
           sequential_maintenance -> c { (!c.connected? || !c.verified?) && c.allow_preconnect } do |conn|
             conn.connect!
-          rescue
-            # Wholesale rescue: there's nothing we can do but move on. The
-            # connection will go back to the pool, and the next consumer will
-            # presumably try to connect again -- which will either work, or
-            # fail and they'll be able to report the exception.
+          rescue => e
+            warn "[PRECONNECT_DEBUG] #{e.class}: #{e.message}"
+            Array(e.backtrace).first(10).each { |line| warn "[PRECONNECT_DEBUG]   #{line}" }
+            cause = e.cause
+            if cause
+              warn "[PRECONNECT_DEBUG] cause: #{cause.class}: #{cause.message}"
+              Array(cause.backtrace).first(10).each { |line| warn "[PRECONNECT_DEBUG]   #{line}" }
+            end
           end
         end
       end
