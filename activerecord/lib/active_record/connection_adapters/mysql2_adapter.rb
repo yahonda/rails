@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "active_record/connection_adapters/abstract_mysql_adapter"
+require "active_record/connection_adapters/mysql/compatibility_strategy"
 require "active_record/connection_adapters/mysql2/database_statements"
 
 gem "mysql2", "~> 0.5"
@@ -20,6 +21,10 @@ module ActiveRecord
       ADAPTER_NAME = "Mysql2"
 
       include Mysql2::DatabaseStatements
+
+      def compatibility_strategy_for(migration_class) # :nodoc:
+        MySQL::CompatibilityStrategy.for(migration_class)
+      end
 
       class << self
         def new_client(config)

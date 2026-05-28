@@ -610,6 +610,8 @@ module ActiveRecord
       end
 
       def compatible_table_definition(t)
+        t.singleton_class.attr_accessor(:compatibility_strategy)
+        t.compatibility_strategy = compatibility_strategy
         t
       end
     end
@@ -1018,6 +1020,7 @@ module ActiveRecord
       end
     ensure
       @connection = nil
+      @compatibility_strategy = nil
       @execution_strategy = nil
     end
 
@@ -1058,6 +1061,10 @@ module ActiveRecord
 
     def connection
       @connection || ActiveRecord::Tasks::DatabaseTasks.migration_connection
+    end
+
+    def compatibility_strategy # :nodoc:
+      @compatibility_strategy ||= connection.compatibility_strategy_for(self.class)
     end
 
     def connection_pool

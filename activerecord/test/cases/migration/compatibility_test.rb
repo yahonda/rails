@@ -454,6 +454,36 @@ module ActiveRecord
           assert_equal "hi", column.default
           assert_equal "utf8mb4_esperanto_ci", column.collation
         end
+
+        def test_create_table_forces_innodb_engine_on_5_1
+          migration = Class.new(ActiveRecord::Migration[5.1]) {
+            def version; 100 end
+            def migrate(x)
+              create_table :more_testings
+            end
+          }.new
+          sql = capture_sql do
+            ActiveRecord::Migrator.new(:up, [migration], @schema_migration, @internal_metadata).migrate
+          end
+          assert_match(/ENGINE=InnoDB/, sql.join)
+        ensure
+          connection.drop_table :more_testings, if_exists: true
+        end
+
+        def test_create_table_respects_explicit_nil_options_on_5_1
+          migration = Class.new(ActiveRecord::Migration[5.1]) {
+            def version; 100 end
+            def migrate(x)
+              create_table :more_testings, options: nil
+            end
+          }.new
+          sql = capture_sql do
+            ActiveRecord::Migrator.new(:up, [migration], @schema_migration, @internal_metadata).migrate
+          end
+          assert_no_match(/ENGINE=InnoDB/, sql.join)
+        ensure
+          connection.drop_table :more_testings, if_exists: true
+        end
       end
 
       def test_add_reference_on_6_0
@@ -1355,5 +1385,177 @@ module LegacyPrimaryKeyTest
       def migration_class
         ActiveRecord::Migration[4.2]
       end
+  end
+end
+
+class MigrationCompatibilityStrategyTest < ActiveRecord::TestCase
+  def test_null_strategy_apply_methods_are_no_ops
+    strategy = ActiveRecord::Migration::Compatibility::NullStrategy.instance
+    options = { foo: 1 }
+    strategy.apply_create_table_options("t", options)
+    strategy.apply_change_column_options("t", "c", :string, options)
+    strategy.apply_disable_extension_options("x", options)
+    strategy.apply_add_foreign_key_options("from", "to", options)
+    strategy.apply_add_reference_options("t", "r", options)
+    assert_equal({ foo: 1 }, options)
+  end
+
+  def test_null_strategy_coerce_column_type_returns_input
+    strategy = ActiveRecord::Migration::Compatibility::NullStrategy.instance
+    assert_equal :datetime, strategy.coerce_column_type(:datetime, {})
+  end
+
+  def test_null_strategy_split_change_column_is_false
+    strategy = ActiveRecord::Migration::Compatibility::NullStrategy.instance
+    assert_not strategy.split_change_column?
+  end
+
+  def test_null_strategy_is_a_singleton
+    assert_same(
+      ActiveRecord::Migration::Compatibility::NullStrategy.instance,
+      ActiveRecord::Migration::Compatibility::NullStrategy.instance
+    )
+  end
+
+  def test_strategy_compose_with_no_strategies_returns_null_strategy
+    composed = ActiveRecord::Migration::Compatibility::Strategy.compose
+    assert_same ActiveRecord::Migration::Compatibility::NullStrategy.instance, composed
+  end
+
+  def test_strategy_compose_with_single_strategy_returns_that_strategy
+    strategy = ActiveRecord::Migration::Compatibility::BaseStrategy.new
+    composed = ActiveRecord::Migration::Compatibility::Strategy.compose(strategy)
+    assert_same strategy, composed
+  end
+
+  def test_strategy_compose_filters_out_null_strategies
+    strategy = ActiveRecord::Migration::Compatibility::BaseStrategy.new
+    null = ActiveRecord::Migration::Compatibility::NullStrategy.instance
+    composed = ActiveRecord::Migration::Compatibility::Strategy.compose(null, strategy, null)
+    assert_same strategy, composed
+  end
+
+  def test_strategy_compose_flattens_nested_composites
+    a = ActiveRecord::Migration::Compatibility::BaseStrategy.new
+    b = ActiveRecord::Migration::Compatibility::BaseStrategy.new
+    c = ActiveRecord::Migration::Compatibility::BaseStrategy.new
+    inner = ActiveRecord::Migration::Compatibility::Strategy.compose(a, b)
+    composed = ActiveRecord::Migration::Compatibility::Strategy.compose(inner, c)
+    assert_kind_of ActiveRecord::Migration::Compatibility::CompositeStrategy, composed
+    assert_equal [a, b, c], composed.strategies
+  end
+
+  def test_composite_strategy_runs_apply_methods_on_every_child_in_order
+    log = []
+    strategy_class = Class.new(ActiveRecord::Migration::Compatibility::BaseStrategy) do
+      def initialize(label, log)
+        @label = label
+        @log = log
+      end
+      def apply_disable_extension_options(_name, _opts)
+        @log << @label
+      end
+    end
+    a = strategy_class.new(:a, log)
+    b = strategy_class.new(:b, log)
+    composed = ActiveRecord::Migration::Compatibility::Strategy.compose(a, b)
+    composed.apply_disable_extension_options(:hstore, {})
+    assert_equal [:a, :b], log
+  end
+
+  def test_composite_strategy_reduces_coerce_column_type_left_to_right
+    a = Class.new(ActiveRecord::Migration::Compatibility::BaseStrategy) {
+      define_method(:coerce_column_type) { |type, _| type == :datetime ? :timestamp : type }
+    }.new
+    b = Class.new(ActiveRecord::Migration::Compatibility::BaseStrategy) {
+      define_method(:coerce_column_type) { |type, _| type == :timestamp ? :timestamptz : type }
+    }.new
+    composed = ActiveRecord::Migration::Compatibility::Strategy.compose(a, b)
+    assert_equal :timestamptz, composed.coerce_column_type(:datetime, {})
+  end
+
+  def test_composite_strategy_split_change_column_is_true_if_any_child_is_true
+    base = ActiveRecord::Migration::Compatibility::BaseStrategy.new
+    splitter = Class.new(ActiveRecord::Migration::Compatibility::BaseStrategy) {
+      def split_change_column?; true; end
+    }.new
+    composed = ActiveRecord::Migration::Compatibility::Strategy.compose(base, splitter)
+    assert composed.split_change_column?
+  end
+
+  def test_version_for_returns_version_class_for_descendant
+    klass = Class.new(ActiveRecord::Migration::Compatibility::V6_1)
+    assert_equal(
+      ActiveRecord::Migration::Compatibility::V6_1,
+      ActiveRecord::Migration::Compatibility.version_for(klass)
+    )
+  end
+
+  def test_version_for_returns_v8_2_for_current
+    assert_equal(
+      ActiveRecord::Migration::Compatibility::V8_2,
+      ActiveRecord::Migration::Compatibility.version_for(ActiveRecord::Migration::Current)
+    )
+  end
+
+  def test_abstract_adapter_returns_null_strategy
+    adapter = ActiveRecord::ConnectionAdapters::AbstractAdapter.allocate
+    klass = Class.new(ActiveRecord::Migration::Compatibility::V6_1)
+    assert_same(
+      ActiveRecord::Migration::Compatibility::NullStrategy.instance,
+      adapter.compatibility_strategy_for(klass)
+    )
+  end
+
+  if current_adapter?(:PostgreSQLAdapter)
+    def test_postgresql_strategy_for_v6_1_composes_v6_1_and_v7_0
+      strategy = ActiveRecord::ConnectionAdapters::PostgreSQL::CompatibilityStrategy.for(
+        Class.new(ActiveRecord::Migration::Compatibility::V6_1)
+      )
+      assert_kind_of ActiveRecord::Migration::Compatibility::CompositeStrategy, strategy
+      assert_equal(
+        [
+          ActiveRecord::ConnectionAdapters::PostgreSQL::CompatibilityStrategy::V6_1,
+          ActiveRecord::ConnectionAdapters::PostgreSQL::CompatibilityStrategy::V7_0,
+        ],
+        strategy.strategies.map(&:class)
+      )
+    end
+
+    def test_postgresql_strategy_for_v7_0_returns_single_strategy
+      strategy = ActiveRecord::ConnectionAdapters::PostgreSQL::CompatibilityStrategy.for(
+        Class.new(ActiveRecord::Migration::Compatibility::V7_0)
+      )
+      assert_kind_of ActiveRecord::ConnectionAdapters::PostgreSQL::CompatibilityStrategy::V7_0, strategy
+    end
+
+    def test_postgresql_strategy_for_current_returns_null_strategy
+      strategy = ActiveRecord::ConnectionAdapters::PostgreSQL::CompatibilityStrategy.for(
+        ActiveRecord::Migration::Current
+      )
+      assert_same ActiveRecord::Migration::Compatibility::NullStrategy.instance, strategy
+    end
+
+    def test_strategy_is_cached_per_version_class
+      a = Class.new(ActiveRecord::Migration::Compatibility::V6_1)
+      b = Class.new(ActiveRecord::Migration::Compatibility::V6_1)
+      assert_same(
+        ActiveRecord::ConnectionAdapters::PostgreSQL::CompatibilityStrategy.for(a),
+        ActiveRecord::ConnectionAdapters::PostgreSQL::CompatibilityStrategy.for(b)
+      )
+    end
+
+    def test_third_party_adapter_can_compose_with_parent_strategy
+      custom_strategy = Class.new(ActiveRecord::Migration::Compatibility::BaseStrategy) {
+        def coerce_column_type(type, _options)
+          type == :timestamp ? :timestamptz : type
+        end
+      }.new
+      parent = ActiveRecord::ConnectionAdapters::PostgreSQL::CompatibilityStrategy.for(
+        Class.new(ActiveRecord::Migration::Compatibility::V6_1)
+      )
+      composed = ActiveRecord::Migration::Compatibility::Strategy.compose(parent, custom_strategy)
+      assert_equal :timestamptz, composed.coerce_column_type(:datetime, {})
+    end
   end
 end

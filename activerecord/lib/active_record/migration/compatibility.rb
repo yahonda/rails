@@ -13,6 +13,91 @@ module ActiveRecord
         const_get(name)
       end
 
+      def self.version_classes
+        @version_classes ||= constants.grep(/\AV\d+_\d+\z/).map { |c| const_get(c) }.uniq.freeze
+      end
+
+      def self.version_for(migration_class)
+        versions = version_classes
+        migration_class.ancestors.each do |ancestor|
+          return ancestor if versions.include?(ancestor)
+        end
+        nil
+      end
+
+      class BaseStrategy
+        def apply_create_table_options(table_name, options); end
+        def apply_change_column_options(table_name, column_name, type, options); end
+        def apply_disable_extension_options(name, options); end
+        def apply_add_foreign_key_options(from_table, to_table, options); end
+        def apply_add_reference_options(table_name, ref_name, options); end
+        def apply_add_index_options(table_name, column_name, options); end
+        def coerce_column_type(type, options); type; end
+        def split_change_column?; false; end
+      end
+
+      class NullStrategy < BaseStrategy
+        @instance = new
+        class << self
+          attr_reader :instance
+        end
+      end
+
+      class CompositeStrategy < BaseStrategy
+        attr_reader :strategies
+
+        def initialize(strategies)
+          @strategies = strategies.freeze
+        end
+
+        superclass.instance_methods(false).grep(/\Aapply_/).each do |meth|
+          define_method(meth) do |*args|
+            @strategies.each { |s| s.public_send(meth, *args) }
+          end
+        end
+
+        def coerce_column_type(type, options)
+          @strategies.inject(type) { |t, s| s.coerce_column_type(t, options) }
+        end
+
+        def split_change_column?
+          @strategies.any?(&:split_change_column?)
+        end
+      end
+
+      module Strategy
+        def self.compose(*strategies)
+          strategies = strategies.flat_map { |s|
+            s.is_a?(CompositeStrategy) ? s.strategies : [s]
+          }.compact.reject { |s| s.is_a?(NullStrategy) }
+
+          case strategies.size
+          when 0 then NullStrategy.instance
+          when 1 then strategies.first
+          else CompositeStrategy.new(strategies)
+          end
+        end
+      end
+
+      module AdapterStrategy
+        def for(migration_class)
+          version_class = Compatibility.version_for(migration_class)
+          return NullStrategy.instance if version_class.nil?
+          (@cache ||= {})[version_class] ||= build(version_class)
+        end
+
+        def build(version_class)
+          selected = version_pairs.filter_map { |version, strategy| strategy.new if version_class <= version }
+          Strategy.compose(*selected)
+        end
+
+        def version_pairs
+          @version_pairs ||= constants.grep(/\AV\d+_\d+\z/).
+            sort_by { |name| name.to_s.scan(/\d+/).map(&:to_i) }.
+            map { |name| [ActiveRecord::Migration::Compatibility.const_get(name), const_get(name)] }
+        end
+      end
+
       # This file exists to ensure that old migrations run the same way they did before a Rails upgrade.
       # e.g. if you write a migration on Rails 6.1, then upgrade to Rails 7, the migration should do the same thing to your
       # database as it did when you were running Rails 6.1
@@ -32,6 +117,16 @@ module ActiveRecord
       V8_2 = Current
 
       class V8_1 < V8_2
+        def create_table(table_name, **options)
+          compatibility_strategy.apply_create_table_options(table_name, options)
+          options.delete(:_skip_id_default_nil)
+          super
+        end
+
+        def add_index(table_name, column_name, **options)
+          compatibility_strategy.apply_add_index_options(table_name, column_name, options)
+          super
+        end
       end
 
       class V8_0 < V8_1
@@ -143,7 +238,6 @@ module ActiveRecord
         def create_table(table_name, **options)
           options[:_uses_legacy_table_name] = true
           options[:_skip_validate_options] = true
-
           super
         end
 
@@ -155,9 +249,7 @@ module ActiveRecord
 
         def change_column(table_name, column_name, type, **options)
           options[:_skip_validate_options] = true
-          if connection.adapter_name == "Mysql2" || connection.adapter_name == "Trilogy"
-            options[:collation] ||= :no_collation
-          end
+          compatibility_strategy.apply_change_column_options(table_name, column_name, type, options)
           super
         end
 
@@ -166,16 +258,12 @@ module ActiveRecord
         end
 
         def disable_extension(name, **options)
-          if connection.adapter_name == "PostgreSQL"
-            options[:force] = :cascade
-          end
+          compatibility_strategy.apply_disable_extension_options(name, options)
           super
         end
 
         def add_foreign_key(from_table, to_table, **options)
-          if connection.adapter_name == "PostgreSQL" && options[:deferrable] == true
-            options[:deferrable] = :immediate
-          end
+          compatibility_strategy.apply_add_foreign_key_options(from_table, to_table, options)
           super
         end
 
@@ -187,26 +275,12 @@ module ActiveRecord
       end
 
       class V6_1 < V7_0
-        class PostgreSQLCompat
-          def self.compatible_timestamp_type(type, connection)
-            if connection.adapter_name == "PostgreSQL"
-              # For Rails <= 6.1, :datetime was aliased to :timestamp
-              # See: https://github.com/rails/rails/blob/v6.1.3.2/activerecord/lib/active_record/connection_adapters/postgresql_adapter.rb#L108
-              # From Rails 7 onwards, you can define what :datetime resolves to (the default is still :timestamp)
-              # See `ActiveRecord::ConnectionAdapters::PostgreSQLAdapter.datetime_type`
-              type.to_sym == :datetime ? :timestamp : type
-            else
-              type
-            end
-          end
-        end
-
         def add_column(table_name, column_name, type, **options)
           if type == :datetime
             options[:precision] ||= nil
           end
 
-          type = PostgreSQLCompat.compatible_timestamp_type(type, connection)
+          type = compatibility_strategy.coerce_column_type(type, options)
           super
         end
 
@@ -215,13 +289,13 @@ module ActiveRecord
             options[:precision] ||= nil
           end
 
-          type = PostgreSQLCompat.compatible_timestamp_type(type, connection)
+          type = compatibility_strategy.coerce_column_type(type, options)
           super
         end
 
         module TableDefinition
           def new_column_definition(name, type, **options)
-            type = PostgreSQLCompat.compatible_timestamp_type(type, @conn)
+            type = compatibility_strategy.coerce_column_type(type, options)
             super
           end
 
@@ -272,10 +346,7 @@ module ActiveRecord
         end
 
         def add_reference(table_name, ref_name, **options)
-          if connection.adapter_name == "SQLite"
-            options[:type] = :integer
-          end
-
+          compatibility_strategy.apply_add_reference_options(table_name, ref_name, options)
           options[:_uses_legacy_reference_index_name] = true
           super
         end
@@ -342,7 +413,7 @@ module ActiveRecord
 
       class V5_1 < V5_2
         def change_column(table_name, column_name, type, **options)
-          if connection.adapter_name == "PostgreSQL"
+          if compatibility_strategy.split_change_column?
             super(table_name, column_name, type, **options.except(:default, :null, :comment))
             connection.change_column_default(table_name, column_name, options[:default]) if options.key?(:default)
             connection.change_column_null(table_name, column_name, options[:null], options[:default]) if options.key?(:null)
@@ -353,11 +424,8 @@ module ActiveRecord
         end
 
         def create_table(table_name, **options)
-          if connection.adapter_name == "Mysql2" || connection.adapter_name == "Trilogy"
-            super(table_name, options: "ENGINE=InnoDB", **options)
-          else
-            super
-          end
+          compatibility_strategy.apply_create_table_options(table_name, options)
+          super
         end
       end
 
@@ -379,13 +447,9 @@ module ActiveRecord
         end
 
         def create_table(table_name, **options)
-          if connection.adapter_name == "PostgreSQL"
-            if options[:id] == :uuid && !options.key?(:default)
-              options[:default] = "uuid_generate_v4()"
-            end
-          end
+          compatibility_strategy.apply_create_table_options(table_name, options)
 
-          unless ["Mysql2", "Trilogy"].include?(connection.adapter_name) && options[:id] == :bigint
+          unless options.delete(:_skip_id_default_nil)
             if [:integer, :bigint].include?(options[:id]) && !options.key?(:default)
               options[:default] = nil
             end

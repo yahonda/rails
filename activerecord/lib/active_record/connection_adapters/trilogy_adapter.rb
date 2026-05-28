@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "active_record/connection_adapters/abstract_mysql_adapter"
+require "active_record/connection_adapters/mysql/compatibility_strategy"
 
 gem "trilogy", "~> 2.7"
 require "trilogy"
@@ -17,6 +18,10 @@ module ActiveRecord
       ADAPTER_NAME = "Trilogy"
 
       include Trilogy::DatabaseStatements
+
+      def compatibility_strategy_for(migration_class) # :nodoc:
+        MySQL::CompatibilityStrategy.for(migration_class)
+      end
 
       SSL_MODES = {
         SSL_MODE_DISABLED: ::Trilogy::SSL_DISABLED,

@@ -406,6 +406,14 @@ module ActiveRecord
         self.class::ADAPTER_NAME
       end
 
+      # Returns a strategy object that adapts a migration's version-specific
+      # behavior to this adapter. Third-party adapters override this to plug
+      # in their own +CompatibilityStrategy+ namespace; see
+      # +ActiveRecord::Migration::Compatibility+ for the strategy interface.
+      def compatibility_strategy_for(migration_class) # :nodoc:
+        ActiveRecord::Migration::Compatibility::NullStrategy.instance
+      end
+
       # Does the database for this adapter exist?
       def self.database_exists?(config)
         new(config).database_exists?

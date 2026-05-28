@@ -1,3 +1,28 @@
+*   Move adapter-specific migration compatibility logic to per-adapter strategy
+    objects.
+
+    Each built-in connection adapter (PostgreSQL, MySQL, SQLite3) now defines its
+    own `CompatibilityStrategy` namespace with one strategy class per
+    backward-compatibility level. At migration time, the connection adapter
+    returns the matching strategy via the new
+    `compatibility_strategy_for(migration_class)` hook on the abstract adapter,
+    and the version-specific `ActiveRecord::Migration::Compatibility::V_X_Y`
+    classes route adapter-variable concerns through the strategy instead of
+    inspecting `connection.adapter_name`. The version classes themselves are
+    never mutated at runtime.
+
+    Third-party adapters (e.g. activerecord-cockroachdb-adapter) can ship their
+    own compatibility behavior by overriding `compatibility_strategy_for` and
+    composing with the parent adapter's strategy via
+    `ActiveRecord::Migration::Compatibility::Strategy.compose(super, ...)`,
+    mirroring the structure used by the built-in adapters. The
+    `apply_*_options` hooks are merged in composition order (the last
+    strategy wins), while `coerce_column_type` is folded left-to-right, so
+    the parent (`super`) coercion runs first; compose your strategy before
+    `super` to override a parent's type coercion.
+
+    *Yasuo Honda*
+
 *   Raise `ActiveRecord::MultiparameterAssignmentErrors` instead of `NoMethodError`
     when assigning a malformed multiparameter attribute name.
 
