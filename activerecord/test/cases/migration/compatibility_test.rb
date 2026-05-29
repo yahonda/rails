@@ -1093,6 +1093,26 @@ module LegacyPolymorphicReferenceIndexTestCases
     assert connection.index_exists?(:testings, [:widget_type, :widget_id], name: :index_testings_on_widget_type_and_widget_id)
     assert connection.index_exists?(:testings, [:gizmo_type, :gizmo_id], name: :index_testings_on_gizmo_type_and_gizmo_id)
   end
+
+  def test_third_party_strategy_subclasses_and_inherits
+    skip unless current_adapter?(:PostgreSQLAdapter)
+
+    cockroach_v7_0 = Class.new(ActiveRecord::ConnectionAdapters::PostgreSQL::CompatibilityStrategy::V7_0) do
+      def disable_extension(name, **options)
+        options[:force] = :custom_cascade
+        yield name, options
+      end
+    end
+    strategy = cockroach_v7_0.allocate
+
+    captured = nil
+    strategy.disable_extension("some_ext") { |_name, options| captured = options }
+    assert_equal :custom_cascade, captured[:force]
+
+    captured = nil
+    strategy.add_foreign_key("a", "b", deferrable: true) { |_from, _to, options| captured = options }
+    assert_equal :immediate, captured[:deferrable]
+  end
 end
 
 module LegacyPolymorphicReferenceIndexTest
