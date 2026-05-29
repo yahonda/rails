@@ -13,6 +13,11 @@ module ActiveRecord
         const_get(name)
       end
 
+      def self.version_for(migration_class)
+        version_classes = constants.grep(/\AV\d+_\d+\z/).map { |c| const_get(c) }
+        migration_class.ancestors.find { |ancestor| version_classes.include?(ancestor) }
+      end
+
       # This file exists to ensure that old migrations run the same way they did before a Rails upgrade.
       # e.g. if you write a migration on Rails 6.1, then upgrade to Rails 7, the migration should do the same thing to your
       # database as it did when you were running Rails 6.1
@@ -126,7 +131,9 @@ module ActiveRecord
 
         def add_column(table_name, column_name, type, **options)
           options[:_skip_validate_options] = true
-          super
+          compatibility_behavior.add_column(table_name, column_name, type, **options) do |t, c, ty, o|
+            super(t, c, ty, **o)
+          end
         end
 
         def add_index(table_name, column_name, **options)
@@ -144,7 +151,9 @@ module ActiveRecord
           options[:_uses_legacy_table_name] = true
           options[:_skip_validate_options] = true
 
-          super
+          compatibility_behavior.create_table(table_name, **options) do |t, o|
+            super(t, **o)
+          end
         end
 
         def rename_table(table_name, new_name, **options)
@@ -158,7 +167,9 @@ module ActiveRecord
           if connection.adapter_name == "Mysql2" || connection.adapter_name == "Trilogy"
             options[:collation] ||= :no_collation
           end
-          super
+          compatibility_behavior.change_column(table_name, column_name, type, **options) do |t, c, ty, o|
+            super(t, c, ty, **o)
+          end
         end
 
         def change_column_null(table_name, column_name, null, default = nil)
@@ -166,17 +177,15 @@ module ActiveRecord
         end
 
         def disable_extension(name, **options)
-          if connection.adapter_name == "PostgreSQL"
-            options[:force] = :cascade
+          compatibility_behavior.disable_extension(name, **options) do |n, o|
+            super(n, **o)
           end
-          super
         end
 
         def add_foreign_key(from_table, to_table, **options)
-          if connection.adapter_name == "PostgreSQL" && options[:deferrable] == true
-            options[:deferrable] = :immediate
+          compatibility_behavior.add_foreign_key(from_table, to_table, **options) do |from, to, o|
+            super(from, to, **o)
           end
-          super
         end
 
         private
@@ -206,7 +215,6 @@ module ActiveRecord
             options[:precision] ||= nil
           end
 
-          type = PostgreSQLCompat.compatible_timestamp_type(type, connection)
           super
         end
 
@@ -215,7 +223,6 @@ module ActiveRecord
             options[:precision] ||= nil
           end
 
-          type = PostgreSQLCompat.compatible_timestamp_type(type, connection)
           super
         end
 
@@ -341,17 +348,6 @@ module ActiveRecord
       end
 
       class V5_1 < V5_2
-        def change_column(table_name, column_name, type, **options)
-          if connection.adapter_name == "PostgreSQL"
-            super(table_name, column_name, type, **options.except(:default, :null, :comment))
-            connection.change_column_default(table_name, column_name, options[:default]) if options.key?(:default)
-            connection.change_column_null(table_name, column_name, options[:null], options[:default]) if options.key?(:null)
-            connection.change_column_comment(table_name, column_name, options[:comment]) if options.key?(:comment)
-          else
-            super
-          end
-        end
-
         def create_table(table_name, **options)
           if connection.adapter_name == "Mysql2" || connection.adapter_name == "Trilogy"
             super(table_name, options: "ENGINE=InnoDB", **options)
@@ -379,12 +375,6 @@ module ActiveRecord
         end
 
         def create_table(table_name, **options)
-          if connection.adapter_name == "PostgreSQL"
-            if options[:id] == :uuid && !options.key?(:default)
-              options[:default] = "uuid_generate_v4()"
-            end
-          end
-
           unless ["Mysql2", "Trilogy"].include?(connection.adapter_name) && options[:id] == :bigint
             if [:integer, :bigint].include?(options[:id]) && !options.key?(:default)
               options[:default] = nil
