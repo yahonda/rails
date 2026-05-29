@@ -195,20 +195,6 @@ module ActiveRecord
       end
 
       class V6_1 < V7_0
-        class PostgreSQLCompat
-          def self.compatible_timestamp_type(type, connection)
-            if connection.adapter_name == "PostgreSQL"
-              # For Rails <= 6.1, :datetime was aliased to :timestamp
-              # See: https://github.com/rails/rails/blob/v6.1.3.2/activerecord/lib/active_record/connection_adapters/postgresql_adapter.rb#L108
-              # From Rails 7 onwards, you can define what :datetime resolves to (the default is still :timestamp)
-              # See `ActiveRecord::ConnectionAdapters::PostgreSQLAdapter.datetime_type`
-              type.to_sym == :datetime ? :timestamp : type
-            else
-              type
-            end
-          end
-        end
-
         def add_column(table_name, column_name, type, **options)
           if type == :datetime
             options[:precision] ||= nil
@@ -227,8 +213,9 @@ module ActiveRecord
 
         module TableDefinition
           def new_column_definition(name, type, **options)
-            type = PostgreSQLCompat.compatible_timestamp_type(type, @conn)
-            super
+            compatibility_behavior.new_column_definition(name, type, **options) do |n, t, o|
+              super(n, t, **o)
+            end
           end
 
           def change(name, type, index: nil, **options)

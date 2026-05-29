@@ -611,6 +611,7 @@ module ActiveRecord
       end
 
       def compatible_table_definition(t)
+        t.compatibility_behavior = compatibility_behavior
         t
       end
     end

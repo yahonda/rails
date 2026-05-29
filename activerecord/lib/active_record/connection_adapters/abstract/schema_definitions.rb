@@ -359,6 +359,7 @@ module ActiveRecord
       include ColumnMethods
 
       attr_reader :name, :temporary, :if_not_exists, :options, :as, :comment, :indexes, :foreign_keys, :check_constraints
+      attr_accessor :compatibility_behavior # :nodoc:
 
       def initialize(
         conn,
@@ -715,6 +716,7 @@ module ActiveRecord
       include ColumnMethods
 
       attr_reader :name
+      attr_accessor :compatibility_behavior # :nodoc:
 
       def initialize(table_name, base)
         @name = table_name
