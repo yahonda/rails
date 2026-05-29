@@ -21,8 +21,10 @@ module ActiveRecord
         end
 
         class V5_0 < V5_1
-          # The framework V5_0 already set default: nil for integer/bigint ids.
-          # MySQL kept bigint ids without that default, so drop it back out.
+          # The framework V5_0 applies default: nil to integer/bigint ids and
+          # runs before this strategy (the dispatch sits above V5_0 in the
+          # chain), so MySQL's bigint-without-default is restored by dropping it
+          # back out here rather than skipping it up front.
           def create_table(table_name, **options)
             options.delete(:default) if options[:id] == :bigint && options[:default].nil?
             super
