@@ -574,6 +574,7 @@ module ActiveRecord
     autoload :JoinTable, "active_record/migration/join_table"
     autoload :ExecutionStrategy, "active_record/migration/execution_strategy"
     autoload :DefaultStrategy, "active_record/migration/default_strategy"
+    autoload :CompatibilityStrategy, "active_record/migration/compatibility_strategy"
 
     # This must be defined before the inherited hook, below
     class Current < Migration # :nodoc:
@@ -831,6 +832,10 @@ module ActiveRecord
       @execution_strategy ||= (connection.migration_strategy || ActiveRecord.migration_strategy).new(self)
     end
 
+    def compatibility_strategy # :nodoc:
+      @compatibility_strategy ||= connection.compatibility_strategy_for(self.class).new(self)
+    end
+
     self.verbose = true
     # instantiate the delegate object after initialize is defined
     self.delegate = new
@@ -1019,6 +1024,7 @@ module ActiveRecord
     ensure
       @connection = nil
       @execution_strategy = nil
+      @compatibility_strategy = nil
     end
 
     def write(text = "")
