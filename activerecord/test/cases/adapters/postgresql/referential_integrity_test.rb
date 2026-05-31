@@ -368,6 +368,18 @@ class PostgreSQLReferentialIntegrityTest < ActiveRecord::PostgreSQLTestCase
     @connection.drop_table "table_referenced_by_partioned_table", if_exists: true
   end
 
+  def test_check_all_foreign_keys_valid_raises_on_invalid_enforced_constraint
+    skip unless @connection.supports_enforced_foreign_keys?
+
+    @connection.execute("INSERT INTO ri_test_children (parent_id) VALUES (999)")
+    @connection.add_foreign_key :ri_test_children, :ri_test_parents,
+      column: :parent_id, name: :ri_test_fk, validate: false
+
+    assert_raises(ActiveRecord::InvalidForeignKey) do
+      @connection.check_all_foreign_keys_valid!
+    end
+  end
+
   private
     def assert_transaction_is_not_broken
       assert_equal 1, @connection.select_value("SELECT 1")
