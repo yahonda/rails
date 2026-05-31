@@ -69,45 +69,50 @@ module ActiveRecord
         end
 
         def check_all_foreign_keys_valid! # :nodoc:
-          # Skip `NOT ENFORCED` constraints (PG 18.4+): `VALIDATE CONSTRAINT` cannot be
-          # applied to them and raises an error.
           if supports_enforced_foreign_keys?
-            enforced_join = <<~SQL
-              JOIN pg_catalog.pg_constraint c
-                ON c.conname = tc.constraint_name
-               AND c.conenforced = true
-              JOIN pg_catalog.pg_class cls ON cls.oid = c.conrelid
-               AND cls.relname = tc.table_name
-              JOIN pg_catalog.pg_namespace ns ON ns.oid = cls.relnamespace
-               AND ns.nspname = tc.table_schema
-               AND ns.nspname = tc.constraint_schema
+            enforced_fks = query_all(<<~SQL)
+              SELECT n.nspname AS schema_name, t.relname AS table_name, c.conname AS constraint_name
+              FROM pg_constraint c
+              JOIN pg_class t ON c.conrelid = t.oid
+              JOIN pg_namespace n ON c.connamespace = n.oid
+              WHERE c.contype = 'f'
+                AND c.conenforced = true
+                AND c.conparentid = 0
             SQL
-          end
 
-          sql = <<~SQL
-            do $$
-              declare r record;
-            BEGIN
-            FOR r IN (
-              SELECT FORMAT(
-                'UPDATE pg_catalog.pg_constraint SET convalidated=false WHERE conname = ''%1$I'' AND connamespace::regnamespace = ''%2$I''::regnamespace AND conrelid::regclass = ''%3$I''::regclass; ALTER TABLE %2$I.%3$I VALIDATE CONSTRAINT %1$I;',
-                constraint_name,
-                table_schema,
-                table_name
-              ) AS constraint_check
-              FROM information_schema.table_constraints tc
-              #{enforced_join}
-              WHERE tc.constraint_type = 'FOREIGN KEY'
-            )
-              LOOP
-                EXECUTE (r.constraint_check);
-              END LOOP;
-            END;
-            $$;
-          SQL
+            transaction(requires_new: true) do
+              enforced_fks.each do |fk|
+                table = "#{quote_table_name(fk["schema_name"])}.#{quote_table_name(fk["table_name"])}"
+                constraint = quote_column_name(fk["constraint_name"])
+                execute("ALTER TABLE #{table} ALTER CONSTRAINT #{constraint} NOT ENFORCED")
+                execute("ALTER TABLE #{table} ALTER CONSTRAINT #{constraint} ENFORCED")
+              end
+            end
+          else
+            sql = <<~SQL
+              do $$
+                declare r record;
+              BEGIN
+              FOR r IN (
+                SELECT FORMAT(
+                  'UPDATE pg_catalog.pg_constraint SET convalidated=false WHERE conname = ''%1$I'' AND connamespace::regnamespace = ''%2$I''::regnamespace AND conrelid::regclass = ''%3$I''::regclass; ALTER TABLE %2$I.%3$I VALIDATE CONSTRAINT %1$I;',
+                  constraint_name,
+                  table_schema,
+                  table_name
+                ) AS constraint_check
+                FROM information_schema.table_constraints tc
+                WHERE tc.constraint_type = 'FOREIGN KEY'
+              )
+                LOOP
+                  EXECUTE (r.constraint_check);
+                END LOOP;
+              END;
+              $$;
+            SQL
 
-          transaction(requires_new: true) do
-            execute(sql)
+            transaction(requires_new: true) do
+              execute(sql)
+            end
           end
         end
       end

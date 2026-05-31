@@ -1,3 +1,13 @@
+*   `check_all_foreign_keys_valid!` no longer requires superuser privileges on
+    PostgreSQL 18.4+.
+
+    On PostgreSQL 18.4+, foreign keys are revalidated by toggling each constraint
+    `NOT ENFORCED` and back to `ENFORCED`, which forces a full re-check without
+    updating the system catalog directly. Earlier PostgreSQL versions keep using
+    `UPDATE pg_catalog.pg_constraint` followed by `VALIDATE CONSTRAINT`.
+
+    *Yasuo Honda*
+
 *   Raise `ActiveRecord::MultiparameterAssignmentErrors` instead of `NoMethodError`
     when assigning a malformed multiparameter attribute name.
 
