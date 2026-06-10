@@ -674,6 +674,14 @@ module ActiveRecord
           query_values(data_source_sql(table_name, type: "FOREIGN TABLE")).any? if table_name.present?
         end
 
+        def add_check_constraint(table_name, expression, **options)
+          if options.key?(:enforced) && !supports_enforced_check_constraints?
+            raise ArgumentError, "NOT ENFORCED check constraints require PostgreSQL 18+ (got #{database_version})"
+          end
+
+          super
+        end
+
         def check_constraints(table_name) # :nodoc:
           result = fetch_check_constraints(Array(table_name).map(&:to_s))
           table_name.is_a?(Array) ? result : result[table_name.to_s]
@@ -1000,6 +1008,43 @@ module ActiveRecord
           execute "ALTER TABLE #{quote_table_name(from_table)} ALTER CONSTRAINT #{quote_column_name(fk_name)} #{enforced ? 'ENFORCED' : 'NOT ENFORCED'}"
         end
 
+        # Changes an existing check constraint on a table.
+        #
+        # The `enforced` option toggles whether PostgreSQL checks the constraint
+        # condition during DML. Requires PostgreSQL 19+.
+        #
+        # Like `validate_check_constraint`, this is a runtime helper rather than a migration
+        # command: it is not registered as reversible, so use it from application code
+        # or explicit `up`/`down` methods. Accepted options are `:enforced` plus
+        # identifying keys (`:name`, `:expression`).
+        #
+        # Changes the check constraint named `price_check` on the `products` table to NOT ENFORCED.
+        #
+        # ```
+        # change_check_constraint :products, name: :price_check, enforced: false
+        # ```
+        #
+        # Changes it back to ENFORCED.
+        #
+        # ```
+        # change_check_constraint :products, name: :price_check, enforced: true
+        # ```
+        #
+        def change_check_constraint(table_name, **options)
+          unless supports_altering_enforced_check_constraints?
+            raise ArgumentError, "change_check_constraint requires PostgreSQL 19+ (got #{database_version})"
+          end
+
+          unless options.key?(:enforced)
+            raise ArgumentError, "change_check_constraint requires at least one option (e.g. enforced:)"
+          end
+
+          enforced = options[:enforced]
+          chk_name = check_constraint_for!(table_name, **options.except(:enforced)).name
+
+          execute "ALTER TABLE #{quote_table_name(table_name)} ALTER CONSTRAINT #{quote_column_name(chk_name)} #{enforced ? 'ENFORCED' : 'NOT ENFORCED'}"
+        end
+
         # Validates the given check constraint.
         #
         # ```
@@ -1280,7 +1325,7 @@ module ActiveRecord
             fetch_by_schema(tables) do |schema, group|
               rows = query_all(<<~SQL)
                 #{resolved_tables(schema, group)}
-                SELECT t.relname AS table_name, conname, pg_get_constraintdef(c.oid, true) AS constraintdef, c.convalidated AS valid
+                SELECT t.relname AS table_name, conname, pg_get_constraintdef(c.oid, true) AS constraintdef, c.convalidated AS valid#{", c.conenforced AS enforced" if supports_enforced_check_constraints?}
                 FROM pg_constraint c
                 JOIN tables t ON c.conrelid = t.oid
                 WHERE c.contype = 'c'
@@ -1297,6 +1342,7 @@ module ActiveRecord
                 name: row["conname"],
                 validate: row["valid"]
               }
+              options[:enforced] = row["enforced"] if supports_enforced_check_constraints?
               expression = row["constraintdef"][/CHECK \((.+)\)/m, 1]
 
               CheckConstraintDefinition.new(table_name, expression, options)
