@@ -1,3 +1,28 @@
+*   Add `enforced:` option to `add_check_constraint` and add `change_check_constraint` for PostgreSQL.
+
+    When `enforced: false` is passed to `add_check_constraint` (PostgreSQL 18+), the constraint
+    is created as `NOT ENFORCED`, meaning the condition is not checked during DML.
+    PostgreSQL marks `NOT ENFORCED` constraints as `NOT VALID` internally, so the schema
+    dumper outputs both `enforced: false` and `validate: false`.
+
+    `change_check_constraint` toggles the enforced status of an existing check constraint.
+    It requires PostgreSQL 19+, where `ALTER TABLE ... ALTER CONSTRAINT ... [NOT] ENFORCED`
+    was extended from foreign key constraints to check constraints. Changing a constraint
+    to `ENFORCED` validates the existing rows with a full table scan.
+
+    ```ruby
+    add_check_constraint :products, "price > 0", name: "price_check", enforced: false
+    # => ALTER TABLE "products" ADD CONSTRAINT price_check CHECK (price > 0) NOT ENFORCED
+
+    change_check_constraint :products, name: "price_check", enforced: true
+    # => ALTER TABLE "products" ALTER CONSTRAINT "price_check" ENFORCED
+
+    change_check_constraint :products, name: "price_check", enforced: false
+    # => ALTER TABLE "products" ALTER CONSTRAINT "price_check" NOT ENFORCED
+    ```
+
+    *Yasuo Honda*
+
 *   `insert!` now accepts the `:unique_by` option, consistent with `insert`.
 
     *Kenta Ishizaki*

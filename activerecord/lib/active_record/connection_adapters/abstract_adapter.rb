@@ -528,6 +528,17 @@ module ActiveRecord
         false
       end
 
+      # Does this adapter support NOT ENFORCED check constraints?
+      def supports_enforced_check_constraints?
+        false
+      end
+
+      # Does this adapter support altering the enforced state of an existing
+      # check constraint?
+      def supports_altering_enforced_check_constraints?
+        false
+      end
+
       # Does this adapter support creating check constraints?
       def supports_check_constraints?
         false

@@ -1404,6 +1404,14 @@ module ActiveRecord
       #
       #   ALTER TABLE "products" ADD CONSTRAINT price_check CHECK (price > 0)
       #
+      # ====== Creating a not enforced check constraint (PostgreSQL 18+)
+      #
+      #   add_check_constraint :products, "price > 0", name: "price_check", enforced: false
+      #
+      # generates:
+      #
+      #   ALTER TABLE "products" ADD CONSTRAINT price_check CHECK (price > 0) NOT ENFORCED
+      #
       # The +options+ hash can include the following keys:
       # [<tt>:name</tt>]
       #   The constraint name. Defaults to <tt>chk_rails_<identifier></tt>.
@@ -1411,6 +1419,10 @@ module ActiveRecord
       #   Silently ignore if the constraint already exists, rather than raise an error.
       # [<tt>:validate</tt>]
       #   (PostgreSQL only) Specify whether or not the constraint should be validated. Defaults to +true+.
+      # [<tt>:enforced</tt>]
+      #   (PostgreSQL 18+) Specify whether or not the check constraint should be enforced.
+      #   Defaults to +true+. When set to +false+, the constraint is created as
+      #   +NOT ENFORCED+, meaning the condition is not checked during DML.
       def add_check_constraint(table_name, expression, if_not_exists: false, **options)
         return unless supports_check_constraints?
 
@@ -1453,6 +1465,13 @@ module ActiveRecord
         at.drop_check_constraint(chk_name_to_delete)
 
         execute schema_creation.accept(at)
+      end
+
+      # Changes an existing check constraint on a table. Currently only the PostgreSQL
+      # adapter (version 19+) implements this; see
+      # PostgreSQL::SchemaStatements#change_check_constraint for details.
+      def change_check_constraint(table_name, **options)
+        raise NotImplementedError, "change_check_constraint is not implemented"
       end
 
       # Checks to see if a check constraint exists on a table for a given check constraint definition.

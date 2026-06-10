@@ -267,6 +267,16 @@ module ActiveRecord
         database_version >= 18_00_04
       end
 
+      def supports_enforced_check_constraints?
+        database_version >= 18_00_00
+      end
+
+      def supports_altering_enforced_check_constraints?
+        # `ALTER TABLE ... ALTER CONSTRAINT ... [NOT] ENFORCED` supports check constraints
+        # from PostgreSQL 19 (commit 342051d73b386ad763e13930e15031f7ba5367f5).
+        database_version >= 19_00_00
+      end
+
       def supports_views?
         true
       end
