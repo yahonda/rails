@@ -115,8 +115,16 @@ module TestHelpers
       @prev_rails_env ||= ENV["RAILS_ENV"]
       ENV["RAILS_ENV"] = "development"
 
-      FileUtils.rm_rf(app_path)
-      FileUtils.cp_r(app_template_path, app_path)
+      retried = false
+      begin
+        FileUtils.rm_rf(app_path)
+        FileUtils.cp_r(app_template_path, app_path)
+      rescue Errno::ENOENT
+        raise if retried
+        retried = true
+        sleep 1
+        retry
+      end
 
       # Delete the initializers unless requested
       unless options[:initializers]
