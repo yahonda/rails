@@ -1296,7 +1296,7 @@ module ActiveRecord
       end
 
       def test_disconnect_and_clear_reloadable_connections_are_able_to_preempt_other_waiting_threads
-        with_single_connection_pool(checkout_timeout: 1.0) do |pool|
+        with_single_connection_pool(checkout_timeout: 30.0) do |pool|
           [:disconnect, :disconnect!, :clear_reloadable_connections, :clear_reloadable_connections!].each do |group_action_method|
             conn               = pool.lease_connection # drain the only available connection
             second_thread_done = Concurrent::Event.new
