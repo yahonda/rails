@@ -121,6 +121,11 @@ module ActiveRecord
             remove if can_remove_no_wait?
           end
 
+          # Removes and returns the head of the queue after a wakeup, or +nil+.
+          def remove_after_wakeup
+            remove if any?
+          end
+
           # Waits on the queue up to +timeout+ seconds, then removes and
           # returns the head of the queue.
           def wait_poll(timeout)
@@ -131,7 +136,9 @@ module ActiveRecord
             loop do
               @cond.wait(timeout - elapsed)
 
-              return remove if any?
+              if (element = remove_after_wakeup)
+                return element
+              end
 
               elapsed = Process.clock_gettime(Process::CLOCK_MONOTONIC) - t0
               if elapsed >= timeout
@@ -185,6 +192,10 @@ module ActiveRecord
               @other_cond
             end.wait(timeout)
           end
+
+          def defer_to_preferred?
+            @preferred_thread.is_a?(Thread) && Thread.current != @preferred_thread
+          end
         end
 
         def with_a_bias_for(thread)
@@ -201,6 +212,16 @@ module ActiveRecord
             new_cond.broadcast_on_biased if new_cond # wake up any remaining sleepers
           end
         end
+
+        private
+          def remove_after_wakeup
+            if any? && @cond.is_a?(BiasedConditionVariable) && @cond.defer_to_preferred?
+              @cond.signal # pass the wakeup along so the element is not stranded
+              nil
+            else
+              super
+            end
+          end
       end
 
       # Connections must be leased while holding the main pool mutex. This is

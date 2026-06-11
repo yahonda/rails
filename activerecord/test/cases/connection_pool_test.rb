@@ -1347,6 +1347,41 @@ module ActiveRecord
         end
       end
 
+      def test_disconnect_preempts_a_waiting_thread_whose_checkout_timeout_expires_during_checkin
+        with_single_connection_pool(checkout_timeout: 1.0) do |pool|
+          conn               = pool.lease_connection
+          second_thread_done = Concurrent::Event.new
+
+          first_thread = new_thread do
+            pool.with_connection { second_thread_done.wait }
+          rescue ActiveRecord::ConnectionTimeoutError
+          end
+
+          pass_to(first_thread) until pool.num_waiting_in_queue == 1
+
+          second_thread = new_thread do
+            pool.disconnect
+            second_thread_done.set
+          end
+
+          pass_to(second_thread) until pool.num_waiting_in_queue == 2 || !first_thread.alive?
+
+          # Hold the pool monitor across first_thread's wait deadline so that its
+          # timeout wakeup, the checkin, and second_thread's signaled wakeup all
+          # contend for the lock at the same time.
+          pool.synchronize do
+            sleep 1.1
+            pool.checkin(conn)
+          end
+
+          assert second_thread.join(2), "disconnect is not able to preempt a waiting thread whose checkout timeout expires during checkin"
+        ensure
+          second_thread_done&.set
+          first_thread&.join(10) || raise("first_thread got stuck")
+          second_thread&.join(10) || raise("second_thread got stuck")
+        end
+      end
+
       def test_clear_reloadable_connections_creates_new_connections_for_waiting_threads_if_necessary
         with_single_connection_pool(checkout_timeout: 1.0) do |pool|
           conn = pool.lease_connection # drain the only available connection
