@@ -1100,17 +1100,17 @@ module LegacyPolymorphicReferenceIndexTestCases
     cockroach_v7_0 = Class.new(ActiveRecord::ConnectionAdapters::PostgreSQL::CompatibilityStrategy::V7_0) do
       def disable_extension(name, **options)
         options[:force] = :custom_cascade
-        yield name, options
+        yield name, **options
       end
     end
     strategy = cockroach_v7_0.allocate
 
     captured = nil
-    strategy.disable_extension("some_ext") { |_name, options| captured = options }
+    strategy.disable_extension("some_ext") { |_name, **options| captured = options }
     assert_equal :custom_cascade, captured[:force]
 
     captured = nil
-    strategy.add_foreign_key("a", "b", deferrable: true) { |_from, _to, options| captured = options }
+    strategy.add_foreign_key("a", "b", deferrable: true) { |_from, _to, **options| captured = options }
     assert_equal :immediate, captured[:deferrable]
   end
 end

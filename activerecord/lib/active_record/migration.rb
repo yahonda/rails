@@ -1083,7 +1083,9 @@ module ActiveRecord
           end
         end
         return super unless execution_strategy.respond_to?(method)
-        execution_strategy.send(method, *arguments, &block)
+        forwarder = ->(*args) { execution_strategy.send(method, *args, &block) }
+        forwarder.ruby2_keywords
+        compatibility_strategy.public_send(method, *arguments, &forwarder)
       end
     end
     ruby2_keywords(:method_missing)

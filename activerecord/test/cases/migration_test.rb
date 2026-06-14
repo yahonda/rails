@@ -461,6 +461,7 @@ class MigrationTest < ActiveRecord::TestCase
         Class.new {
           def create_table; "hi mom!"; end
           def migration_strategy; nil; end
+          def compatibility_strategy_for(_); ActiveRecord::Migration::CompatibilityStrategy; end
         }.new
       end
     }.new
@@ -474,6 +475,7 @@ class MigrationTest < ActiveRecord::TestCase
         Class.new {
           def create_table; end
           def migration_strategy; nil; end
+          def compatibility_strategy_for(_); ActiveRecord::Migration::CompatibilityStrategy; end
         }.new
       end
     }

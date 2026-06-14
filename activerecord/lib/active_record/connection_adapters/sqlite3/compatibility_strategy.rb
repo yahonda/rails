@@ -10,7 +10,7 @@ module ActiveRecord
         class V6_0 < Base
           def add_reference(table_name, ref_name, **options)
             options[:type] = :integer
-            yield table_name, ref_name, options
+            yield table_name, ref_name, **options
           end
         end
       end

@@ -131,9 +131,7 @@ module ActiveRecord
 
         def add_column(table_name, column_name, type, **options)
           options[:_skip_validate_options] = true
-          compatibility_strategy.add_column(table_name, column_name, type, **options) do |t, c, ty, o|
-            super(t, c, ty, **o)
-          end
+          super
         end
 
         def add_index(table_name, column_name, **options)
@@ -143,9 +141,7 @@ module ActiveRecord
 
         def add_reference(table_name, ref_name, **options)
           options[:_skip_validate_options] = true
-          compatibility_strategy.add_reference(table_name, ref_name, **options) do |t, r, o|
-            super(t, r, **o)
-          end
+          super
         end
         alias :add_belongs_to :add_reference
 
@@ -153,9 +149,7 @@ module ActiveRecord
           options[:_uses_legacy_table_name] = true
           options[:_skip_validate_options] = true
 
-          compatibility_strategy.create_table(table_name, **options) do |t, o|
-            super(t, **o)
-          end
+          super
         end
 
         def rename_table(table_name, new_name, **options)
@@ -166,25 +160,11 @@ module ActiveRecord
 
         def change_column(table_name, column_name, type, **options)
           options[:_skip_validate_options] = true
-          compatibility_strategy.change_column(table_name, column_name, type, **options) do |t, c, ty, o|
-            super(t, c, ty, **o)
-          end
+          super
         end
 
         def change_column_null(table_name, column_name, null, default = nil)
           super(table_name, column_name, !!null, default)
-        end
-
-        def disable_extension(name, **options)
-          compatibility_strategy.disable_extension(name, **options) do |n, o|
-            super(n, **o)
-          end
-        end
-
-        def add_foreign_key(from_table, to_table, **options)
-          compatibility_strategy.add_foreign_key(from_table, to_table, **options) do |from, to, o|
-            super(from, to, **o)
-          end
         end
 
         private
@@ -213,7 +193,7 @@ module ActiveRecord
 
         module TableDefinition
           def new_column_definition(name, type, **options)
-            compatibility_strategy.new_column_definition(name, type, **options) do |n, t, o|
+            compatibility_strategy.new_column_definition(name, type, **options) do |n, t, **o|
               super(n, t, **o)
             end
           end
