@@ -5,6 +5,7 @@ module ActiveRecord
     module PostgreSQL
       module CompatibilityStrategy # :nodoc: all
         Base = ActiveRecord::Migration::CompatibilityStrategy
+        extend Base::Resolver
 
         class V7_0 < Base
           def disable_extension(name, **options)
@@ -51,20 +52,6 @@ module ActiveRecord
             end
             yield table_name, options
           end
-        end
-
-        STRATEGIES = [
-          [ActiveRecord::Migration::Compatibility::V5_0, V5_0],
-          [ActiveRecord::Migration::Compatibility::V5_1, V5_1],
-          [ActiveRecord::Migration::Compatibility::V6_1, V6_1],
-          [ActiveRecord::Migration::Compatibility::V7_0, V7_0],
-        ].freeze
-
-        def self.for(migration_class)
-          version_class = ActiveRecord::Migration::Compatibility.version_for(migration_class)
-          return Base if version_class.nil?
-          pair = STRATEGIES.find { |version, _| version_class <= version }
-          pair ? pair.last : Base
         end
       end
     end
