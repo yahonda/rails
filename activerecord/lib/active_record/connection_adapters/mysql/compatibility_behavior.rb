@@ -10,7 +10,7 @@ module ActiveRecord
         class V7_0 < Base
           def change_column(table_name, column_name, type, **options)
             options[:collation] ||= :no_collation
-            yield table_name, column_name, type, options
+            yield table_name, column_name, type, **options
           end
         end
 
@@ -26,7 +26,7 @@ module ActiveRecord
         class V5_1 < V5_2
           def create_table(table_name, **options)
             options[:options] = "ENGINE=InnoDB" unless options.key?(:options)
-            yield table_name, options
+            yield table_name, **options
           end
         end
 

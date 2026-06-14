@@ -10,29 +10,29 @@ module ActiveRecord
         class V7_0 < Base
           def disable_extension(name, **options)
             options[:force] = :cascade
-            yield name, options
+            yield name, **options
           end
 
           def add_foreign_key(from_table, to_table, **options)
             options[:deferrable] = :immediate if options[:deferrable] == true
-            yield from_table, to_table, options
+            yield from_table, to_table, **options
           end
         end
 
         class V6_1 < V7_0
           def add_column(table_name, column_name, type, **options)
             type = :timestamp if type.to_sym == :datetime
-            yield table_name, column_name, type, options
+            yield table_name, column_name, type, **options
           end
 
           def change_column(table_name, column_name, type, **options)
             type = :timestamp if type.to_sym == :datetime
-            yield table_name, column_name, type, options
+            yield table_name, column_name, type, **options
           end
 
           def new_column_definition(name, type, **options)
             type = :timestamp if type.to_sym == :datetime
-            yield name, type, options
+            yield name, type, **options
           end
         end
 
@@ -56,7 +56,7 @@ module ActiveRecord
             if options[:id] == :uuid && !options.key?(:default)
               options[:default] = "uuid_generate_v4()"
             end
-            yield table_name, options
+            yield table_name, **options
           end
         end
       end
