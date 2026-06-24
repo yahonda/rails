@@ -828,6 +828,16 @@ module ActiveRecord
         def clear_type_mapping_callbacks! # :nodoc:
           @@type_mapping_callbacks = [] if defined?(@@type_mapping_callbacks)
         end
+
+        private
+          def extract_precision(sql_type)
+            precision = super
+            if precision.nil? && /\A(?:timestamp|timestamptz|time|timetz)(?: with(?:out)? time zone)?(?:\[\])?\z/i.match?(sql_type)
+              6
+            else
+              precision
+            end
+          end
       end
 
       private
@@ -868,6 +878,7 @@ module ActiveRecord
           self.class.initialize_type_map(m)
 
           self.class.register_class_with_precision m, "time", Type::Time, timezone: @default_timezone
+          self.class.register_class_with_precision m, "timetz", Type::Time, timezone: @default_timezone
           self.class.register_class_with_precision m, "timestamp", OID::Timestamp, timezone: @default_timezone
           self.class.register_class_with_precision m, "timestamptz", OID::TimestampWithTimeZone
 

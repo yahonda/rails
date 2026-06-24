@@ -1,3 +1,11 @@
+*   Report PostgreSQL default timestamp and time precision as 6.
+
+    Bare PostgreSQL `timestamp` and `time` columns now use their effective
+    microsecond precision in Active Record type metadata, matching the
+    database's persisted precision.
+
+    *Adrianna Chang*
+
 *   Support polymorphic associations with custom primary keys through `:inverse_of`.
 
     When using polymorphic associations with `:inverse_of`, ActiveRecord now respects
