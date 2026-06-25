@@ -829,15 +829,12 @@ module ActiveRecord
           @@type_mapping_callbacks = [] if defined?(@@type_mapping_callbacks)
         end
 
-        private
-          def extract_precision(sql_type)
-            precision = super
-            if precision.nil? && /\A(?:timestamp|timestamptz|time|timetz)(?: with(?:out)? time zone)?(?:\[\])?\z/i.match?(sql_type)
-              6
-            else
-              precision
-            end
+        def register_class_with_precision(mapping, key, klass, **kwargs) # :nodoc:
+          mapping.register_type(key) do |_oid, fmod, _sql_type|
+            precision = fmod == -1 ? 6 : fmod
+            klass.new(precision: precision, **kwargs).freeze
           end
+        end
       end
 
       private
