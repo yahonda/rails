@@ -8,6 +8,7 @@ require "active_record/connection_adapters/abstract_adapter"
 require "active_record/connection_adapters/statement_pool"
 require "active_record/connection_adapters/postgresql/column"
 require "active_record/connection_adapters/postgresql/database_statements"
+require "active_record/connection_adapters/postgresql/compatibility_behavior"
 require "active_record/connection_adapters/postgresql/explain_pretty_printer"
 require "active_record/connection_adapters/postgresql/oid"
 require "active_record/connection_adapters/postgresql/quoting"
@@ -207,6 +208,10 @@ module ActiveRecord
       include PostgreSQL::ReferentialIntegrity
       include PostgreSQL::SchemaStatements
       include PostgreSQL::DatabaseStatements
+
+      def compatibility_behavior_for(migration_class) # :nodoc:
+        PostgreSQL::CompatibilityBehavior.for(migration_class)
+      end
 
       def supports_bulk_alter?
         true
