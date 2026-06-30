@@ -1097,6 +1097,42 @@ module LegacyPolymorphicReferenceIndexTestCases
     assert connection.index_exists?(:testings, [:widget_type, :widget_id], name: :index_testings_on_widget_type_and_widget_id)
     assert connection.index_exists?(:testings, [:gizmo_type, :gizmo_id], name: :index_testings_on_gizmo_type_and_gizmo_id)
   end
+
+  def test_third_party_behavior_subclasses_and_inherits
+    skip unless current_adapter?(:PostgreSQLAdapter)
+
+    third_party_v7_0 = Class.new(ActiveRecord::ConnectionAdapters::PostgreSQL::CompatibilityBehavior::V7_0) do
+      def disable_extension(name, **options)
+        options[:force] = :custom_cascade
+        yield name, **options
+      end
+    end
+    behavior = third_party_v7_0.allocate
+
+    captured = nil
+    behavior.disable_extension("some_ext") { |_name, **options| captured = options }
+    assert_equal :custom_cascade, captured[:force]
+
+    captured = nil
+    behavior.add_foreign_key("a", "b", deferrable: true) { |_from, _to, **options| captured = options }
+    assert_equal :immediate, captured[:deferrable]
+  end
+
+  def test_third_party_resolver_derives_version_mapping
+    namespace = Module.new do
+      const_set(:V7_0, Class.new(ActiveRecord::Migration::CompatibilityBehavior))
+      const_set(:V6_1, Class.new(const_get(:V7_0)))
+      extend ActiveRecord::Migration::CompatibilityBehavior::Resolver
+    end
+
+    # A defined version resolves to its own behavior.
+    assert_same namespace::V7_0, namespace.for(ActiveRecord::Migration[7.0])
+    assert_same namespace::V6_1, namespace.for(ActiveRecord::Migration[6.1])
+    # An older, undefined version rides on the oldest behavior that covers it.
+    assert_same namespace::V6_1, namespace.for(ActiveRecord::Migration[5.2])
+    # A version newer than the newest defined behavior falls back to the no-op base.
+    assert_same ActiveRecord::Migration::CompatibilityBehavior, namespace.for(ActiveRecord::Migration[7.1])
+  end
 end
 
 module LegacyPolymorphicReferenceIndexTest
