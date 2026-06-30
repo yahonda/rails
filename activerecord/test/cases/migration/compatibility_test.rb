@@ -1438,6 +1438,20 @@ module LegacyPrimaryKeyTestCases
         schema = dump_table_schema "legacy_primary_keys"
         assert_match %r{create_table "legacy_primary_keys", (?!id: :bigint, default: nil)}, schema
       end
+
+      def test_legacy_bigint_primary_key_with_explicit_nil_default_should_not_be_auto_incremented
+        @migration = Class.new(migration_class) {
+          def change
+            create_table :legacy_primary_keys, id: :bigint, default: nil
+          end
+        }.new
+
+        @migration.migrate(:up)
+
+        legacy_pk = LegacyPrimaryKey.columns_hash["id"]
+        assert_predicate legacy_pk, :bigint?
+        assert_not legacy_pk.auto_increment?
+      end
     else
       def test_legacy_bigint_primary_key_should_not_be_auto_incremented
         @migration = Class.new(migration_class) {

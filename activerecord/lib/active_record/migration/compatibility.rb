@@ -160,9 +160,6 @@ module ActiveRecord
 
         def change_column(table_name, column_name, type, **options)
           options[:_skip_validate_options] = true
-          if connection.adapter_name == "Mysql2" || connection.adapter_name == "Trilogy"
-            options[:collation] ||= :no_collation
-          end
           super
         end
 
@@ -311,13 +308,6 @@ module ActiveRecord
       end
 
       class V5_1 < V5_2
-        def create_table(table_name, **options)
-          if connection.adapter_name == "Mysql2" || connection.adapter_name == "Trilogy"
-            super(table_name, options: "ENGINE=InnoDB", **options)
-          else
-            super
-          end
-        end
       end
 
       class V5_0 < V5_1
@@ -338,10 +328,11 @@ module ActiveRecord
         end
 
         def create_table(table_name, **options)
-          unless ["Mysql2", "Trilogy"].include?(connection.adapter_name) && options[:id] == :bigint
-            if [:integer, :bigint].include?(options[:id]) && !options.key?(:default)
-              options[:default] = nil
-            end
+          if [:integer, :bigint].include?(options[:id]) && !options.key?(:default)
+            # Inject the nil default with a marker, so an adapter behavior
+            # can tell it apart from a user-written `default: nil`.
+            options[:default] = nil
+            options[:_compat_injected_default] = true
           end
 
           # Since 5.1 PostgreSQL adapter uses bigserial type for primary
