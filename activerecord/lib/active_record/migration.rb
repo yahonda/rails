@@ -574,6 +574,7 @@ module ActiveRecord
     autoload :JoinTable, "active_record/migration/join_table"
     autoload :ExecutionStrategy, "active_record/migration/execution_strategy"
     autoload :DefaultStrategy, "active_record/migration/default_strategy"
+    autoload :CompatibilityBehavior, "active_record/migration/compatibility_behavior"
 
     # This must be defined before the inherited hook, below
     class Current < Migration # :nodoc:
@@ -609,7 +610,15 @@ module ActiveRecord
         end
       end
 
+      # Prepends newest-version-first, so method lookup finds the oldest
+      # version's module first: its override runs first and `super` reaches
+      # the newer ones — mirroring the behavior classes' own inheritance.
+      # `t` is a TableDefinition for create_table and a Table for change_table.
       def compatible_table_definition(t)
+        compatibility_behavior.class.ancestors.reverse_each do |behavior_class|
+          next unless behavior_class <= CompatibilityBehavior && behavior_class.const_defined?(:TableDefinition, false)
+          t.singleton_class.prepend(behavior_class.const_get(:TableDefinition, false))
+        end
         t
       end
     end
@@ -831,6 +840,10 @@ module ActiveRecord
       @execution_strategy ||= (connection.migration_strategy || ActiveRecord.migration_strategy).new(self)
     end
 
+    def compatibility_behavior # :nodoc:
+      @compatibility_behavior ||= connection.compatibility_behavior_for(self.class).new(self)
+    end
+
     self.verbose = true
     # instantiate the delegate object after initialize is defined
     self.delegate = new
@@ -1019,6 +1032,7 @@ module ActiveRecord
     ensure
       @connection = nil
       @execution_strategy = nil
+      @compatibility_behavior = nil
     end
 
     def write(text = "")
@@ -1076,7 +1090,10 @@ module ActiveRecord
           end
         end
         return super unless execution_strategy.respond_to?(method)
-        execution_strategy.send(method, *arguments, &block)
+        # Pass the strategy call as a block so a behavior can run work around the operation, not just mutate its arguments.
+        forwarder = ->(*args) { execution_strategy.send(method, *args, &block) }
+        forwarder.ruby2_keywords
+        compatibility_behavior.public_send(method, *arguments, &forwarder)
       end
     end
     ruby2_keywords(:method_missing)
