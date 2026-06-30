@@ -65,6 +65,25 @@ module ActiveRecord
         assert_includes cols, "name_shadow"
       end
 
+      def test_behavior_table_definition_coerces_datetime_on_postgresql
+        skip unless current_adapter?(:PostgreSQLAdapter)
+
+        # With datetime_type switched, an uncoerced :datetime would become
+        # timestamptz — so this fails if the behavior's V6_1::TableDefinition
+        # module stops being prepended or stops coercing.
+        with_postgresql_datetime_type(:timestamptz) do
+          migration = Class.new(ActiveRecord::Migration[6.1]) {
+            def migrate(x)
+              create_table(:behavior_tabledef, force: true) { |t| t.datetime :published_at }
+            end
+          }.new
+          ActiveRecord::Migrator.new(:up, [migration], @schema_migration, @internal_metadata).migrate
+
+          column = connection.columns(:behavior_tabledef).find { |c| c.name == "published_at" }
+          assert_match(/without time zone/, column.sql_type)
+        end
+      end
+
       def test_verbose_output_shows_executed_arguments
         behavior_class = Class.new(ActiveRecord::Migration::CompatibilityBehavior) do
           def add_column(table_name, column_name, type, **options)
@@ -1179,6 +1198,26 @@ module LegacyPolymorphicReferenceIndexTestCases
 
     assert connection.index_exists?(:testings, [:widget_type, :widget_id], name: :index_testings_on_widget_type_and_widget_id)
     assert connection.index_exists?(:testings, [:gizmo_type, :gizmo_id], name: :index_testings_on_gizmo_type_and_gizmo_id)
+  end
+
+  def test_third_party_behavior_subclasses_and_inherits
+    skip unless current_adapter?(:PostgreSQLAdapter)
+
+    third_party_v7_0 = Class.new(ActiveRecord::ConnectionAdapters::PostgreSQL::CompatibilityBehavior::V7_0) do
+      def disable_extension(name, **options)
+        options[:force] = :custom_cascade
+        yield name, **options
+      end
+    end
+    behavior = third_party_v7_0.allocate
+
+    captured = nil
+    behavior.disable_extension("some_ext") { |_name, **options| captured = options }
+    assert_equal :custom_cascade, captured[:force]
+
+    captured = nil
+    behavior.add_foreign_key("a", "b", deferrable: true) { |_from, _to, **options| captured = options }
+    assert_equal :immediate, captured[:deferrable]
   end
 
   def test_third_party_resolver_derives_version_mapping
