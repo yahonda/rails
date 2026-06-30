@@ -13,6 +13,11 @@ module ActiveRecord
         const_get(name)
       end
 
+      def self.version_for(migration_class)
+        version_classes = constants.grep(/\AV\d+_\d+\z/).map { |c| const_get(c) }
+        migration_class.ancestors.find { |ancestor| version_classes.include?(ancestor) }
+      end
+
       # This file exists to ensure that old migrations run the same way they did before a Rails upgrade.
       # e.g. if you write a migration on Rails 6.1, then upgrade to Rails 7, the migration should do the same thing to your
       # database as it did when you were running Rails 6.1

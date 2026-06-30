@@ -574,6 +574,7 @@ module ActiveRecord
     autoload :JoinTable, "active_record/migration/join_table"
     autoload :ExecutionStrategy, "active_record/migration/execution_strategy"
     autoload :DefaultStrategy, "active_record/migration/default_strategy"
+    autoload :CompatibilityBehavior, "active_record/migration/compatibility_behavior"
 
     # This must be defined before the inherited hook, below
     class Current < Migration # :nodoc:
@@ -609,7 +610,18 @@ module ActiveRecord
         end
       end
 
+      # Lets a table definition carry the migration's compatibility behavior:
+      # `compatible_table_definition` stores it, and the version modules it
+      # prepends (e.g. V6_1's `new_column_definition` coercion) read it back
+      # to route through the behavior. Defined in the migration-compatibility
+      # layer so the connection-adapters table classes stay unaware of it.
+      module CompatibilityBehaviorAccessor # :nodoc:
+        attr_accessor :compatibility_behavior
+      end
+
       def compatible_table_definition(t)
+        t.singleton_class.include(CompatibilityBehaviorAccessor)
+        t.compatibility_behavior = compatibility_behavior
         t
       end
     end
@@ -831,6 +843,10 @@ module ActiveRecord
       @execution_strategy ||= (connection.migration_strategy || ActiveRecord.migration_strategy).new(self)
     end
 
+    def compatibility_behavior # :nodoc:
+      @compatibility_behavior ||= connection.compatibility_behavior_for(self.class).new(self)
+    end
+
     self.verbose = true
     # instantiate the delegate object after initialize is defined
     self.delegate = new
@@ -1019,6 +1035,7 @@ module ActiveRecord
     ensure
       @connection = nil
       @execution_strategy = nil
+      @compatibility_behavior = nil
     end
 
     def write(text = "")
@@ -1076,7 +1093,10 @@ module ActiveRecord
           end
         end
         return super unless execution_strategy.respond_to?(method)
-        execution_strategy.send(method, *arguments, &block)
+        # Pass the strategy call as a block so PostgreSQL's V5_1 change_column runs it before its own change_column_default/null/comment.
+        forwarder = ->(*args) { execution_strategy.send(method, *args, &block) }
+        forwarder.ruby2_keywords
+        compatibility_behavior.public_send(method, *arguments, &forwarder)
       end
     end
     ruby2_keywords(:method_missing)
