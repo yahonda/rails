@@ -35,9 +35,11 @@ module ActiveRecord
             yield table_name, column_name, type, **options
           end
 
-          def new_column_definition(name, type, **options)
-            type = :timestamp if type.to_sym == :datetime
-            yield name, type, **options
+          module TableDefinition
+            def new_column_definition(name, type, **options)
+              type = :timestamp if type.to_sym == :datetime
+              super
+            end
           end
         end
 

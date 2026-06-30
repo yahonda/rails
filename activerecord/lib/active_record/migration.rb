@@ -610,11 +610,11 @@ module ActiveRecord
         end
       end
 
-      # Lets a table definition carry the migration's compatibility behavior:
-      # `compatible_table_definition` stores it, and the version modules it
-      # prepends (e.g. V6_1's `new_column_definition` coercion) read it back
-      # to route through the behavior. Defined in the migration-compatibility
-      # layer so the connection-adapters table classes stay unaware of it.
+      # Lets a table definition carry the migration's compatibility behavior so
+      # the behavior's prepended `TableDefinition` module(s) can reach it when a
+      # customization needs to route back through the behavior. Defined in the
+      # migration-compatibility layer so the connection-adapters table classes
+      # stay unaware of it.
       module CompatibilityBehaviorAccessor # :nodoc:
         attr_accessor :compatibility_behavior
       end
@@ -622,6 +622,13 @@ module ActiveRecord
       def compatible_table_definition(t)
         t.singleton_class.include(CompatibilityBehaviorAccessor)
         t.compatibility_behavior = compatibility_behavior
+        # Prepend the behavior's own `TableDefinition` module(s) so a per-adapter
+        # behavior can customize any inline `t.<op>` generically, without the
+        # framework hardcoding a per-operation dispatch hook.
+        compatibility_behavior.class.ancestors.reverse_each do |behavior_class|
+          next unless behavior_class.is_a?(Class) && behavior_class.const_defined?(:TableDefinition, false)
+          t.singleton_class.prepend(behavior_class.const_get(:TableDefinition, false))
+        end
         t
       end
     end

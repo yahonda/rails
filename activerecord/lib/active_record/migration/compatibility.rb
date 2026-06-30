@@ -192,12 +192,6 @@ module ActiveRecord
         end
 
         module TableDefinition
-          def new_column_definition(name, type, **options)
-            compatibility_behavior.new_column_definition(name, type, **options) do |n, t, **o|
-              super(n, t, **o)
-            end
-          end
-
           def change(name, type, index: nil, **options)
             options[:precision] ||= nil
             super

@@ -30,8 +30,39 @@ module ActiveRecord
 
       teardown do
         connection.drop_table :testings rescue nil
+        connection.drop_table :poc_tabledef rescue nil
         ActiveRecord::Migration.verbose = @verbose_was
         @schema_migration.delete_all_versions rescue nil
+      end
+
+      # POC: a per-adapter behavior can customize an inline t.<op> by carrying a
+      # TableDefinition module, prepended generically (no framework per-op hook).
+      def test_behavior_table_definition_module_is_prepended_generically
+        behavior_class = Class.new(ActiveRecord::Migration::CompatibilityBehavior) do
+          const_set(:TableDefinition, Module.new do
+            def column(name, type, **options)
+              super
+              super(:"#{name}_shadow", type, **options) unless name.to_s.end_with?("_shadow")
+            end
+          end)
+        end
+        namespace = Module.new do
+          const_set(:V7_0, behavior_class)
+          extend ActiveRecord::Migration::CompatibilityBehavior::Resolver
+        end
+
+        connection.stub(:compatibility_behavior_for, ->(klass) { namespace.for(klass) }) do
+          migration = Class.new(ActiveRecord::Migration[7.0]) {
+            def migrate(x)
+              create_table(:poc_tabledef, force: true) { |t| t.string :name }
+            end
+          }.new
+          ActiveRecord::Migrator.new(:up, [migration], @schema_migration, @internal_metadata).migrate
+        end
+
+        cols = connection.columns(:poc_tabledef).map(&:name)
+        assert_includes cols, "name"
+        assert_includes cols, "name_shadow"
       end
 
       def test_migration_doesnt_remove_named_index
