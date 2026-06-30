@@ -3,6 +3,7 @@
 require "active_record/connection_adapters/abstract_adapter"
 require "active_record/connection_adapters/statement_pool"
 require "active_record/connection_adapters/sqlite3/column"
+require "active_record/connection_adapters/sqlite3/compatibility_behavior"
 require "active_record/connection_adapters/sqlite3/explain_pretty_printer"
 require "active_record/connection_adapters/sqlite3/quoting"
 require "active_record/connection_adapters/sqlite3/database_statements"
@@ -192,6 +193,10 @@ module ActiveRecord
 
       def database_exists?
         @config[:database] == ":memory:" || File.exist?(@config[:database].to_s)
+      end
+
+      def compatibility_behavior_for(migration_class) # :nodoc:
+        SQLite3::CompatibilityBehavior.for(migration_class)
       end
 
       def supports_ddl_transactions?
