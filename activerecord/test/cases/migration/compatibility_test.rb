@@ -30,8 +30,146 @@ module ActiveRecord
 
       teardown do
         connection.drop_table :testings rescue nil
+        connection.drop_table :compat_tabledef rescue nil
         ActiveRecord::Migration.verbose = @verbose_was
         @schema_migration.delete_all_versions rescue nil
+      end
+
+      def test_compatibility_module_extends_the_execution_strategy
+        namespace = Module.new do
+          const_set(:V7_0, Module.new do
+            def add_column(table_name, column_name, type, **options)
+              options[:null] = false
+              super
+            end
+          end)
+          extend ActiveRecord::Migration::Compatibility::AdapterModules
+        end
+
+        migration = Class.new(ActiveRecord::Migration[7.0]) {
+          def migrate(x)
+            add_column :testings, :extra, :string
+          end
+        }.new
+
+        connection.stub(:migration_compatibility_for, ->(klass) { namespace.for(klass) }) do
+          ActiveRecord::Migrator.new(:up, [migration], @schema_migration, @internal_metadata).migrate
+        end
+
+        assert connection.column_exists?(:testings, :extra, null: false)
+      end
+
+      # A per-adapter compatibility module customizes an inline t.<op> by
+      # carrying a TableDefinition module, prepended generically.
+      def test_compatibility_table_definition_module_is_prepended_generically
+        namespace = Module.new do
+          const_set(:V7_0, Module.new do
+            const_set(:TableDefinition, Module.new do
+              def column(name, type, **options)
+                super
+                super(:"#{name}_shadow", type, **options) unless name.to_s.end_with?("_shadow")
+              end
+            end)
+          end)
+          extend ActiveRecord::Migration::Compatibility::AdapterModules
+        end
+
+        connection.stub(:migration_compatibility_for, ->(klass) { namespace.for(klass) }) do
+          migration = Class.new(ActiveRecord::Migration[7.0]) {
+            def migrate(x)
+              create_table(:compat_tabledef, force: true) { |t| t.string :name }
+            end
+          }.new
+          ActiveRecord::Migrator.new(:up, [migration], @schema_migration, @internal_metadata).migrate
+        end
+
+        cols = connection.columns(:compat_tabledef).map(&:name)
+        assert_includes cols, "name"
+        assert_includes cols, "name_shadow"
+      end
+
+      def test_adapter_modules_resolver_derives_version_mapping
+        namespace = Module.new do
+          v7_0 = const_set(:V7_0, Module.new)
+          const_set(:V6_1, Module.new { include v7_0 })
+          extend ActiveRecord::Migration::Compatibility::AdapterModules
+        end
+
+        # A defined version resolves to its own module.
+        assert_same namespace::V7_0, namespace.for(ActiveRecord::Migration[7.0])
+        assert_same namespace::V6_1, namespace.for(ActiveRecord::Migration[6.1])
+        # An older, undefined version rides on the oldest module that covers it.
+        assert_same namespace::V6_1, namespace.for(ActiveRecord::Migration[5.2])
+        # A version newer than the newest defined module gets no compatibility.
+        assert_nil namespace.for(ActiveRecord::Migration[7.1])
+      end
+
+      # The rails/rails#57480 scenario: one migration class shared across
+      # adapters resolves each adapter's compatibility from the connection,
+      # with no cross-run leakage.
+      def test_shared_migration_class_resolves_compatibility_per_connection
+        adapter_a = Module.new do
+          const_set(:V7_0, Module.new do
+            def add_column(table_name, column_name, type, **options)
+              options[:null] = false
+              super
+            end
+          end)
+          extend ActiveRecord::Migration::Compatibility::AdapterModules
+        end
+        adapter_b = Module.new do
+          const_set(:V7_0, Module.new do
+            def add_column(table_name, column_name, type, **options)
+              options[:default] = "from_b"
+              super
+            end
+          end)
+          extend ActiveRecord::Migration::Compatibility::AdapterModules
+        end
+
+        shared_migration_class = Class.new(ActiveRecord::Migration[7.0]) {
+          def migrate(x)
+            add_column :testings, :flag, :string
+          end
+        }
+
+        connection.stub(:migration_compatibility_for, ->(klass) { adapter_a.for(klass) }) do
+          ActiveRecord::Migrator.new(:up, [shared_migration_class.new], @schema_migration, @internal_metadata).migrate
+        end
+        assert connection.column_exists?(:testings, :flag, null: false)
+        assert_nil connection.columns(:testings).find { |c| c.name == "flag" }.default
+
+        connection.remove_column :testings, :flag
+        @schema_migration.delete_all_versions
+
+        connection.stub(:migration_compatibility_for, ->(klass) { adapter_b.for(klass) }) do
+          ActiveRecord::Migrator.new(:up, [shared_migration_class.new], @schema_migration, @internal_metadata).migrate
+        end
+        column = connection.columns(:testings).find { |c| c.name == "flag" }
+        assert_equal "from_b", column.default
+        assert connection.column_exists?(:testings, :flag, null: true)
+      end
+
+      def test_compatibility_module_coerces_datetime_on_postgresql
+        skip unless current_adapter?(:PostgreSQLAdapter)
+
+        # With datetime_type switched, an uncoerced :datetime would become
+        # timestamptz — so this fails if the V6_1 module (or its nested
+        # TableDefinition) stops applying.
+        with_postgresql_datetime_type(:timestamptz) do
+          migration = Class.new(ActiveRecord::Migration[6.1]) {
+            def migrate(x)
+              create_table(:compat_tabledef, force: true) { |t| t.datetime :published_at }
+              add_column :compat_tabledef, :refreshed_at, :datetime
+            end
+          }.new
+          ActiveRecord::Migrator.new(:up, [migration], @schema_migration, @internal_metadata).migrate
+
+          %w[published_at refreshed_at].each do |name|
+            column = connection.columns(:compat_tabledef).find { |c| c.name == name }
+            assert_match(/without time zone/, column.sql_type)
+          end
+        end
       end
 
       def test_migration_doesnt_remove_named_index
