@@ -96,6 +96,27 @@ module ActiveRecord
         assert connection.column_exists?(:testings, :extra, null: false)
       end
 
+      def test_change_column_follow_ups_honor_table_name_prefix_on_5_1
+        skip unless current_adapter?(:PostgreSQLAdapter)
+
+        ActiveRecord::Base.table_name_prefix = "p_"
+        connection.create_table :p_testings, force: true do |t|
+          t.string :foo
+        end
+
+        migration = Class.new(ActiveRecord::Migration[5.1]) {
+          def migrate(x)
+            change_column :testings, :foo, :string, default: "expected"
+          end
+        }.new
+        ActiveRecord::Migrator.new(:up, [migration], @schema_migration, @internal_metadata).migrate
+
+        assert_equal "expected", connection.columns(:p_testings).find { |c| c.name == "foo" }.default
+      ensure
+        ActiveRecord::Base.table_name_prefix = ""
+        connection.drop_table :p_testings rescue nil
+      end
+
       def test_migration_doesnt_remove_named_index
         connection.add_index :testings, :foo, name: "custom_index_name"
 
