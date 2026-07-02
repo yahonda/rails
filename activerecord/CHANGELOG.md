@@ -1,3 +1,35 @@
+*   Move adapter-specific migration compatibility into per-adapter behaviors.
+
+    `ActiveRecord::Migration::Compatibility` no longer branches on
+    `connection.adapter_name`. Each connection adapter instead exposes its
+    version-specific migration compatibility through
+    `compatibility_behavior_for(migration_class)`, which resolves the
+    migration's declared version (e.g. `Migration[6.1]`) to a chain of
+    `ActiveRecord::Migration::CompatibilityBehavior` subclasses. Migration
+    operations are routed through the resolved behavior, and a behavior can
+    carry nested `TableDefinition` modules to customize inline `t.<op>`
+    calls — for example, the PostgreSQL `:datetime` → `:timestamp` coercion
+    for migrations written for Rails 6.1 and earlier.
+
+    Like the rest of the connection-adapter interface, the extension point
+    is internal (`:nodoc:`). Third-party adapters — which already build on
+    that interface — can define their own behavior chain, or inherit a
+    built-in adapter's, instead of patching `Migration::Compatibility` from
+    the outside.
+
+    Verbose migration output now shows the arguments each operation
+    actually executes with, including `table_name_prefix`/`_suffix` and
+    compatibility adjustments.
+
+    *Yasuo Honda*
+
+*   Fix `change_column` for `Migration[5.1]`-and-earlier compatibility on
+    PostgreSQL ignoring `table_name_prefix`/`_suffix` in its separate
+    `:default` / `:null` / `:comment` statements, which targeted the
+    unprefixed table name.
+
+    *Yasuo Honda*
+
 *   Report PostgreSQL default timestamp and time precision as 6.
 
     Bare PostgreSQL `timestamp` and `time` columns now use their effective
