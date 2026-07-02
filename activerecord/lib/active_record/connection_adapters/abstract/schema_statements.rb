@@ -9,6 +9,10 @@ module ActiveRecord
     module SchemaStatements
       include ActiveRecord::Migration::JoinTable
 
+      def migration_compatibility_for(migration_class) # :nodoc:
+        nil
+      end
+
       # Returns a hash of mappings from the abstract data types to the native
       # database types. See TableDefinition#column for details on the recognized
       # abstract data types.

@@ -13,6 +13,38 @@ module ActiveRecord
         const_get(name)
       end
 
+      def self.version_for(migration_class)
+        version_classes = constants.grep(/\AV\d+_\d+\z/).map { |c| const_get(c) }
+        migration_class.ancestors.find { |ancestor| version_classes.include?(ancestor) }
+      end
+
+      # Extended by an adapter's migration-compatibility namespace to map a
+      # migration's declared version to the adapter's module covering it.
+      #
+      # Schema loads resolve like migrations: a versioned
+      # ActiveRecord::Schema[x.y] maps to V<x_y>, and ActiveRecord::Schema
+      # itself maps to Current. A module registered for the newest version
+      # therefore also applies during db:schema:load; check for
+      # ActiveRecord::Schema::Definition inside it when schema loads must
+      # keep the adapter's default behavior.
+      module AdapterModules # :nodoc:
+        def for(migration_class)
+          version_class = Compatibility.version_for(migration_class)
+          return unless version_class
+          # version_pairs is oldest-first; a module covers its own version and older.
+          # Pick the lowest defined version >= the migration's.
+          pair = version_pairs.find { |version, _| version_class <= version }
+          pair&.last
+        end
+
+        private
+          def version_pairs
+            @version_pairs ||= constants.grep(/\AV\d+_\d+\z/)
+              .map { |name| [Compatibility.const_get(name), const_get(name)] }
+              .sort { |a, b| a.first <=> b.first }
+          end
+      end
+
       # This file exists to ensure that old migrations run the same way they did before a Rails upgrade.
       # e.g. if you write a migration on Rails 6.1, then upgrade to Rails 7, the migration should do the same thing to your
       # database as it did when you were running Rails 6.1

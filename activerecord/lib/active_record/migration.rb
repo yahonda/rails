@@ -609,7 +609,17 @@ module ActiveRecord
         end
       end
 
+      # Prepends newest-version-first, so method lookup finds the oldest
+      # version's module first: its override runs first and `super` reaches
+      # the newer ones — mirroring the compatibility modules' include chain.
+      # `t` is a TableDefinition for create_table and a Table for change_table.
       def compatible_table_definition(t)
+        if (compatibility = connection.migration_compatibility_for(self.class))
+          compatibility.ancestors.reverse_each do |mod|
+            next unless mod.const_defined?(:TableDefinition, false)
+            t.singleton_class.prepend(mod.const_get(:TableDefinition, false))
+          end
+        end
         t
       end
     end
@@ -828,7 +838,16 @@ module ActiveRecord
     end
 
     def execution_strategy
-      @execution_strategy ||= (connection.migration_strategy || ActiveRecord.migration_strategy).new(self)
+      @execution_strategy ||= begin
+        strategy = (connection.migration_strategy || ActiveRecord.migration_strategy).new(self)
+        # The module's include chain mirrors inheritance: the oldest version's
+        # override runs first and `super` reaches the newer ones, then the
+        # strategy itself.
+        if (compatibility = connection.migration_compatibility_for(self.class))
+          strategy.extend(compatibility)
+        end
+        strategy
+      end
     end
 
     self.verbose = true
