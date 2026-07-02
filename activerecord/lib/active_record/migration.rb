@@ -1079,22 +1079,25 @@ module ActiveRecord
     end
 
     def method_missing(method, *arguments, &block)
-      say_with_time "#{method}(#{format_arguments(arguments)})" do
-        unless connection.respond_to? :revert
-          unless arguments.empty? || [:execute, :enable_extension, :disable_extension].include?(method)
-            arguments[0] = proper_table_name(arguments.first, table_name_options)
-            if method == :rename_table ||
-              (method == :remove_foreign_key && !arguments.second.is_a?(Hash))
-              arguments[1] = proper_table_name(arguments.second, table_name_options)
-            end
+      unless connection.respond_to? :revert
+        unless arguments.empty? || [:execute, :enable_extension, :disable_extension].include?(method)
+          arguments[0] = proper_table_name(arguments.first, table_name_options)
+          if method == :rename_table ||
+            (method == :remove_foreign_key && !arguments.second.is_a?(Hash))
+            arguments[1] = proper_table_name(arguments.second, table_name_options)
           end
         end
-        return super unless execution_strategy.respond_to?(method)
-        # Pass the strategy call as a block so a behavior can run work around the operation, not just mutate its arguments.
-        forwarder = ->(*args) { execution_strategy.send(method, *args, &block) }
-        forwarder.ruby2_keywords
-        compatibility_behavior.public_send(method, *arguments, &forwarder)
       end
+      return super unless execution_strategy.respond_to?(method)
+      # Pass the strategy call as a block so a behavior can run work around the operation, not just mutate its arguments.
+      # Logging sits inside the forwarder so the verbose output shows the arguments the operation actually executes with.
+      forwarder = ->(*args) do
+        say_with_time("#{method}(#{format_arguments(args)})") do
+          execution_strategy.send(method, *args, &block)
+        end
+      end
+      forwarder.ruby2_keywords
+      compatibility_behavior.public_send(method, *arguments, &forwarder)
     end
     ruby2_keywords(:method_missing)
 
