@@ -113,7 +113,10 @@ module TestHelpers
       @prev_rails_application ||= Rails.application
       Rails.app_class = Rails.application = nil
 
-      @prev_rails_env ||= ENV["RAILS_ENV"]
+      # Capture with `defined?` rather than `||=`: when RAILS_ENV is unset, `||=`
+      # would keep re-capturing, and a second `build_app` would record the
+      # "development" value set here, leaving RAILS_ENV behind on teardown.
+      @prev_rails_env = ENV["RAILS_ENV"] unless defined?(@prev_rails_env)
       ENV["RAILS_ENV"] = "development"
 
       FileUtils.rm_rf(app_path)
