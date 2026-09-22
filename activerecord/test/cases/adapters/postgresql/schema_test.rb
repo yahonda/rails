@@ -1155,6 +1155,33 @@ class DumpSchemasTest < ActiveRecord::PostgreSQLTestCase
     end
   end
 
+  def test_schema_dump_creates_schema_of_extension_outside_schema_search_path
+    with_extension_in_schema("extension_schema") do
+      with_dump_schemas(:schema_search_path) do
+        with_schema_search_path("public") do
+          output = dump_all_table_schema
+
+          assert_includes output, 'create_schema "extension_schema"'
+          assert_not_includes output, 'create_schema "test_schema"'
+          assert_match(/create_schema "extension_schema".*enable_extension/m, output)
+          assert_not_includes output, "test_table"
+        end
+      end
+    end
+  end
+
+  def test_schema_dump_creates_schema_of_extension_outside_dump_schemas_string
+    with_extension_in_schema("extension_schema") do
+      with_dump_schemas("test_schema") do
+        output = dump_all_table_schema
+
+        assert_includes output, 'create_schema "extension_schema"'
+        assert_includes output, 'create_schema "test_schema"'
+        assert_not_includes output, 'create_schema "test_schema2"'
+      end
+    end
+  end
+
   def test_schema_dump_with_cross_schema_foreign_key
     with_dump_schemas(:all) do
       output = dump_all_table_schema
@@ -1163,4 +1190,15 @@ class DumpSchemasTest < ActiveRecord::PostgreSQLTestCase
       assert_not_includes output, 'add_foreign_key "test_schema.cross_schema_fk_table", "test_schema.test_schema2.referenced_table"'
     end
   end
+
+  private
+    def with_extension_in_schema(schema)
+      @connection.disable_extension("hstore")
+      @connection.create_schema(schema)
+      @connection.enable_extension("#{schema}.hstore")
+      yield
+    ensure
+      @connection.disable_extension("hstore")
+      @connection.drop_schema(schema, if_exists: true)
+    end
 end

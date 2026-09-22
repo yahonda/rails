@@ -1,3 +1,14 @@
+*   Fix the PostgreSQL schema dumper to emit `create_schema` for the schema
+    containing an extension's objects, even when the schema is not in
+    `ActiveRecord.dump_schemas`.
+
+    Extensions are dumped regardless of `dump_schemas`, so `db/schema.rb`
+    could contain `enable_extension "tiger.postgis_tiger_geocoder"` without
+    the `create_schema "tiger"` it needs, and loading it on a fresh database
+    failed with `PG::InvalidSchemaName`.
+
+    *Yasuo Honda*
+
 *   Active Record schema caches can now be dumped in JSON format.
 
     Enabled by configuring `schema_cache_path` with a path ending in `.json`,

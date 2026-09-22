@@ -48,7 +48,7 @@ module ActiveRecord
           end
 
           def schemas(stream)
-            schema_names = @dump_schemas - ["public"]
+            schema_names = (@dump_schemas | schemas_containing_extension_objects) - ["public", "pg_catalog"]
 
             if schema_names.any?
               schema_names.sort.each do |name|
@@ -56,6 +56,12 @@ module ActiveRecord
               end
               stream.puts
             end
+          end
+
+          # Extensions are dumped regardless of `dump_schemas`, so the schemas
+          # containing their objects must exist before `enable_extension` runs.
+          def schemas_containing_extension_objects
+            @connection.extensions.filter_map { |name| name.split(".")[-2] }
           end
 
           def tables(stream)
