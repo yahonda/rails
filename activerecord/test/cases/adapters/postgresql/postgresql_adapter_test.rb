@@ -87,6 +87,24 @@ module ActiveRecord
         end
       end
 
+      def test_bad_connection_with_sqlstate_for_missing_database
+        error = connection_bad_with_sqlstate('FATAL:  データベース"should_not_exist_db"は存在しません', "3D000")
+        PG.stub(:connect, proc { |**| raise error }) do
+          assert_raises ActiveRecord::NoDatabaseError do
+            connect_with(database: "should_not_exist_db")
+          end
+        end
+      end
+
+      def test_bad_connection_with_sqlstate_for_invalid_password_when_database_and_user_have_the_same_name
+        error = connection_bad_with_sqlstate('FATAL:  password authentication failed for user "rails"', "28P01")
+        PG.stub(:connect, proc { |**| raise error }) do
+          assert_raises ActiveRecord::DatabaseConnectionError do
+            connect_with(database: "rails", username: "rails")
+          end
+        end
+      end
+
       def test_bad_connection_to_postgres_database
         connect_raises_error = proc { |**_conn_params| raise(PG::ConnectionBad, 'FATAL:  database "postgres" does not exist') }
         PG.stub(:connect, connect_raises_error) do
@@ -1741,6 +1759,18 @@ module ActiveRecord
       end
 
       private
+        def connection_bad_with_sqlstate(message, sqlstate)
+          result = Object.new
+          result.define_singleton_method(:error_field) { |field| sqlstate if field == PG::PG_DIAG_SQLSTATE }
+          PG::ConnectionBad.new(message, result: result)
+        end
+
+        def connect_with(**config)
+          db_config = ActiveRecord::Base.configurations.configs_for(env_name: "arunit", name: "primary")
+          connection = ActiveRecord::ConnectionAdapters::PostgreSQLAdapter.new(db_config.configuration_hash.merge(config))
+          connection.exec_query("SELECT 1")
+        end
+
         def with_postgresql_apdater_decode_dates
           PostgreSQLAdapter.decode_dates = true
           yield
