@@ -263,7 +263,10 @@ module ActiveRecord
       end
 
       def get_advisory_lock(lock_name, timeout = 0) # :nodoc:
-        query_value("SELECT GET_LOCK(#{quote(lock_name.to_s)}, #{timeout})", nil, materialize_transactions: true) == 1
+        locked = query_value("SELECT GET_LOCK(#{quote(lock_name.to_s)}, #{timeout})", nil, materialize_transactions: true) == 1
+        # A session-level advisory lock cannot be restored by reconnecting.
+        @raw_connection_dirty = true if locked
+        locked
       end
 
       def release_advisory_lock(lock_name) # :nodoc:

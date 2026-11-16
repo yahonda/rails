@@ -1,3 +1,16 @@
+*   Fix migrations continuing without their advisory lock after the database
+    connection is lost.
+
+    Since Rails 7.1 a lost connection is transparently re-established, unless
+    it holds session state that cannot be restored. A session-level advisory
+    lock is such state but was not counted as one, so a migration could keep
+    running on a new session without the lock. Acquiring an advisory lock now
+    marks the connection as not restorable, and it raises a connection error
+    instead of reconnecting. This lasts after the lock is released, until the
+    connection is checked out of the pool again.
+
+    *Yasuo Honda*
+
 *   Add `config.active_record.association_scope_keeps_owner_conditions` to
     always apply the conditions tying the records of an association to the
     owner, and deprecate removing them with the association scope.

@@ -979,6 +979,57 @@ module ActiveRecord
         assert_operator Post.count, :>, 0
       end
 
+      if ActiveRecord::Base.lease_connection.supports_advisory_locks?
+        test "connection holding an advisory lock is not reconnected after remote disconnection" do
+          lock_id = 5295901941911233443
+          assert @connection.get_advisory_lock(lock_id)
+          remote_disconnect @connection
+
+          assert_raises ActiveRecord::ConnectionFailed do
+            Post.transaction { Post.count }
+          end
+          assert_not_predicate @connection, :active?
+        end
+
+        test "connection that failed to get an advisory lock is reconnected after remote disconnection" do
+          lock_id = 5295901941911233443
+          pool = ActiveRecord::Base.connection_pool
+          other_connection = pool.checkout
+          assert other_connection.get_advisory_lock(lock_id)
+
+          assert_not @connection.get_advisory_lock(lock_id)
+          remote_disconnect @connection
+
+          Post.transaction { Post.count }
+          assert_predicate @connection, :active?
+        ensure
+          other_connection&.release_advisory_lock(lock_id)
+          pool.checkin(other_connection) if other_connection
+        end
+
+        test "connection that released an advisory lock is not reconnected after remote disconnection" do
+          lock_id = 5295901941911233443
+          assert @connection.get_advisory_lock(lock_id)
+          assert @connection.release_advisory_lock(lock_id)
+          remote_disconnect @connection
+
+          assert_raises ActiveRecord::ConnectionFailed do
+            Post.transaction { Post.count }
+          end
+          assert_not_predicate @connection, :active?
+        end
+
+        test "connection that held an advisory lock is reconnected once it is checked out again" do
+          lock_id = 5295901941911233443
+          assert @connection.get_advisory_lock(lock_id)
+          remote_disconnect @connection
+          @connection.clean! # this simulates a fresh checkout from the pool
+
+          Post.transaction { Post.count }
+          assert_predicate @connection, :active?
+        end
+      end
+
       test "connection failures consume the reconnect allowance" do
         budget = ActiveRecord::ConnectionAdapters::RetryBudget.new(
           retries: 2, deadline: nil, reconnectable: true
