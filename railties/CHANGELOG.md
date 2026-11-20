@@ -1,3 +1,11 @@
+*   Use the Node.js LTS major as the fallback version for new applications.
+
+    When Node.js is not installed and `NODE_VERSION` is not set, generate `26`
+    in `.node-version` and the Dockerfile. Generated Dockerfiles use mise to
+    install Node.js, supporting both exact and major version specifications.
+
+    *Yasuo Honda*
+
 *   Harden generated GitHub Actions workflows
 
     Generated `ci.yml` pins versions of actions (except ruby/setup-ruby) to

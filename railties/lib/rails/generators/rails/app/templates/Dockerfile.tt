@@ -40,16 +40,12 @@ RUN apt-get update -qq && \
 ARG NODE_VERSION=<%= node_version %>
 ARG YARN_VERSION=<%= dockerfile_yarn_version %>
 ENV PATH=/usr/local/node/bin:$PATH
+COPY --from=ghcr.io/jdx/mise:latest /usr/local/bin/mise /usr/local/bin/mise
+RUN mise install-into "node@${NODE_VERSION}" /usr/local/node
 <% if yarn_through_corepack? -%>
-RUN curl -sL https://github.com/nodenv/node-build/archive/master.tar.gz | tar xz -C /tmp/ && \
-    /tmp/node-build-master/bin/node-build "${NODE_VERSION}" /usr/local/node && \
-    rm -rf /tmp/node-build-master
-RUN corepack enable && yarn set version $YARN_VERSION
+RUN npm install -g corepack && corepack enable && yarn set version $YARN_VERSION
 <% else -%>
-RUN curl -sL https://github.com/nodenv/node-build/archive/master.tar.gz | tar xz -C /tmp/ && \
-    /tmp/node-build-master/bin/node-build "${NODE_VERSION}" /usr/local/node && \
-    npm install -g yarn@$YARN_VERSION && \
-    rm -rf /tmp/node-build-master
+RUN npm install -g yarn@$YARN_VERSION
 <% end -%>
 
 <% end -%>

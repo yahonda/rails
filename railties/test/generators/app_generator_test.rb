@@ -1063,6 +1063,42 @@ class AppGeneratorTest < Rails::Generators::TestCase
     assert_node_files
   end
 
+  def test_node_version_environment_override
+    generator([destination_root], javascript: "esbuild")
+
+    switch_env "NODE_VERSION", "24.10.0" do
+      generator.stub :capture_command, ->(*) { flunk "Should not detect Node.js" } do
+        assert_equal "24.10.0", generator.send(:node_version)
+      end
+    end
+  end
+
+  def test_node_version_uses_installed_node
+    generator([destination_root], javascript: "esbuild")
+
+    switch_env "NODE_VERSION", nil do
+      generator.stub :capture_command, "24.10.0" do
+        assert_equal "24.10.0", generator.send(:node_version)
+      end
+    end
+  end
+
+  def test_node_version_falls_back_to_lts_major_for_generated_files
+    generator([destination_root], javascript: "esbuild")
+    capture_command = generator.method(:capture_command)
+    without_node = ->(command, *args) { capture_command.call(command, *args) unless command == "node --version" }
+
+    switch_env "NODE_VERSION", nil do
+      generator.stub :capture_command, without_node do
+        run_generator_instance
+      end
+    end
+
+    assert_node_files
+    assert_file ".node-version", "26\n"
+    assert_file "Dockerfile", /^ARG NODE_VERSION=26$/
+  end
+
   def test_esbuild_option_with_javascript_argument
     run_generator [destination_root, "--javascript", "esbuild"]
     assert_gem "jsbundling-rails"
@@ -1090,7 +1126,7 @@ class AppGeneratorTest < Rails::Generators::TestCase
     assert_file "Dockerfile" do |content|
       assert_match(/ARG YARN_VERSION=latest/, content)
 
-      assert_match("RUN corepack enable && yarn set version $YARN_VERSION", content)
+      assert_match("RUN npm install -g corepack && corepack enable && yarn set version $YARN_VERSION", content)
     end
   end
 
@@ -1966,12 +2002,15 @@ class AppGeneratorTest < Rails::Generators::TestCase
 
     def assert_node_files
       assert_file ".node-version" do |content|
-        assert_match %r/\d+\.\d+\.\d+/, content
+        assert_match %r/\A\d+(?:\.\d+\.\d+)?\s*\z/, content
       end
 
       assert_file "Dockerfile" do |content|
         assert_match "yarn", content
         assert_match "node-gyp", content
+        assert_match "COPY --from=ghcr.io/jdx/mise:latest", content
+        assert_match 'mise install-into "node@${NODE_VERSION}" /usr/local/node', content
+        assert_no_match "node-build", content
       end
     end
 
@@ -1981,6 +2020,7 @@ class AppGeneratorTest < Rails::Generators::TestCase
       assert_file "Dockerfile" do |content|
         assert_no_match "yarn", content
         assert_no_match "node-gyp", content
+        assert_no_match "mise", content
       end
     end
 
