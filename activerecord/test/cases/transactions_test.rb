@@ -1728,6 +1728,7 @@ class ConcurrentTransactionTest < ActiveRecord::TestCase
     # This will cause transactions to overlap and fail unless they are performed on
     # separate database connections.
     def test_transaction_per_thread
+      skip "innodb_snapshot_isolation is ON" if mariadb_innodb_snapshot_isolation?
       threads = 3.times.map do
         Thread.new do
           Topic.transaction do
@@ -1746,6 +1747,7 @@ class ConcurrentTransactionTest < ActiveRecord::TestCase
 
     # Test for dirty reads among simultaneous transactions.
     def test_transaction_isolation__read_committed
+      skip "innodb_snapshot_isolation is ON" if mariadb_innodb_snapshot_isolation?
       # Should be invariant.
       original_salary = Developer.find(1).salary
       temporary_salary = 200000

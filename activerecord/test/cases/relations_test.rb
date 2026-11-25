@@ -2773,14 +2773,17 @@ class CreateOrFindByWithinTransactions < ActiveRecord::TestCase
 
     if current_adapter?(:Mysql2Adapter, :TrilogyAdapter)
       def test_three_concurrent_find_or_create_by_within_repeatable_read_transactions
+        skip "innodb_snapshot_isolation is ON" if mariadb_innodb_snapshot_isolation?
         three_concurrent_creates(:find_or_create_by, :repeatable_read)
       end
 
       def test_three_concurrent_find_or_create_by_bang_within_repeatable_read_transactions
+        skip "innodb_snapshot_isolation is ON" if mariadb_innodb_snapshot_isolation?
         three_concurrent_creates(:find_or_create_by!, :repeatable_read)
       end
 
       def test_three_concurrent_find_or_create_by_within_savepoints_in_repeatable_read_transactions
+        skip "innodb_snapshot_isolation is ON" if mariadb_innodb_snapshot_isolation?
         three_concurrent_creates(:find_or_create_by, :repeatable_read, requires_new: true) do
           Subscriber.create!(nick: "after_#{Thread.current.object_id}")
         end
@@ -2853,6 +2856,7 @@ class CreateOrFindByWithinTransactions < ActiveRecord::TestCase
       end
 
       def duel
+        skip "innodb_snapshot_isolation is ON" if mariadb_innodb_snapshot_isolation?
         assert_nil Subscriber.find_by(nick: "bob")
 
         a_wakeup = Concurrent::Event.new

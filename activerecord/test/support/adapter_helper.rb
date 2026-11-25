@@ -24,6 +24,14 @@ module AdapterHelper
     current_adapter?(:SQLite3Adapter) && !ActiveRecord::Base.connection_pool.db_config.configuration_hash[:strict]
   end
 
+  def mariadb_innodb_snapshot_isolation?
+    current_adapter?(:Mysql2Adapter, :TrilogyAdapter) &&
+      ActiveRecord::Base.lease_connection.mariadb? &&
+      ActiveRecord::Base.lease_connection.select_value("SELECT @@innodb_snapshot_isolation") == 1
+  rescue ActiveRecord::StatementInvalid
+    false
+  end
+
   def mysql_enforcing_gtid_consistency?
     current_adapter?(:Mysql2Adapter, :TrilogyAdapter) && "ON" == ActiveRecord::Base.lease_connection.show_variable("enforce_gtid_consistency")
   end
